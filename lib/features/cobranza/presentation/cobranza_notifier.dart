@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
+import '../../../core/services/notification_service.dart';
 import '../data/cobranza_repository.dart';
 import '../domain/cliente_mora.dart';
 import '../domain/accion_cobranza.dart';
@@ -49,7 +50,7 @@ class CobranzaNotifier extends StateNotifier<CobranzaState> {
   Future<void> cargarMorosos() async {
     state = state.copyWith(status: CobranzaStatus.loading, clearError: true);
     try {
-      final morosos = await _repository.getMorosos(_asesorId);
+      final morosos = await _repository.getMorosos();
       final total =
           morosos.fold<double>(0, (sum, m) => sum + m.montoVencido);
       state = state.copyWith(
@@ -98,6 +99,24 @@ class CobranzaNotifier extends StateNotifier<CobranzaState> {
         timestampGestion: DateTime.now(),
       );
       await _repository.registrarAccion(accion);
+
+      if (fechaCompromiso != null && resultado == 'compromiso_pago') {
+        final horaNotif = DateTime(
+          fechaCompromiso!.year,
+          fechaCompromiso!.month,
+          fechaCompromiso!.day,
+          8, 0,
+        );
+        await NotificationService.instance.scheduleNotification(
+          id: 'compromiso_${accion.id}'.hashCode,
+          title: 'Recordatorio de compromiso de pago',
+          body: 'Cliente: ${accion.clienteId} acordó pagar S/${montoCompromiso?.toStringAsFixed(0) ?? ''} hoy.',
+          scheduledDate: horaNotif.isAfter(DateTime.now())
+              ? horaNotif
+              : DateTime.now(),
+        );
+      }
+
       state = state.copyWith(
         status: CobranzaStatus.registroExitoso,
         mensajeExito: 'Gestión registrada correctamente',

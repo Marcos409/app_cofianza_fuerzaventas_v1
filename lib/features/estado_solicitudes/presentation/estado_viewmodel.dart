@@ -46,13 +46,16 @@ class EstadoNotifier extends StateNotifier<EstadoState> {
       : super(const EstadoState());
 
   Future<void> cargarSolicitudes() async {
+    print('[EstadoNotifier] cargarSolicitudes _asesorId=$_asesorId');
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final lista = await _repository.listarPorAsesor(_asesorId);
+      print('[EstadoNotifier] listarPorAsesor retornó ${lista.length} solicitudes');
       final agrupadas = _agrupar(lista);
       state = state.copyWith(agrupadas: agrupadas, isLoading: false);
       _suscribirStream();
     } catch (e) {
+      print('[EstadoNotifier] Error cargando solicitudes: $e');
       state = state.copyWith(
         isLoading: false,
         errorMessage: 'Error al cargar solicitudes: $e',

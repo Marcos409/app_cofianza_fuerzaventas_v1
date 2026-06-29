@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/network_monitor.dart';
-import '../../../core/supabase/supabase_client.dart';
-import '../../../core/storage/local_db.dart';
+import '../../../core/cache/local_cache.dart';
 import '../../../features/documentos/domain/documento_model.dart';
 import '../../../features/solicitud/domain/solicitud_model.dart';
 import '../data/transmision_repository.dart';
@@ -9,14 +8,13 @@ import 'transmision_viewmodel.dart';
 
 final transmisionRepositoryProvider = Provider<TransmisionRepository>((ref) {
   return TransmisionRepository(
-    SupabaseService.instance.client,
     NetworkMonitor(),
-    LocalDb.instance,
+    LocalCache.instance,
   );
 });
 
 final transmisionNotifierProvider =
-    StateNotifierProvider.autoDispose.family<TransmisionNotifier,
+    StateNotifierProvider.family<TransmisionNotifier,
         TransmisionState, TransmisionParams>((ref, params) {
   final repository = ref.watch(transmisionRepositoryProvider);
   return TransmisionNotifier(

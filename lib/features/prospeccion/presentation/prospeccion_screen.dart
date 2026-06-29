@@ -6,6 +6,7 @@ import 'prospeccion_viewmodel.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_strings.dart';
 import '../../../shared/utils/formatters.dart';
+import '../../../shared/utils/responsive.dart';
 import '../../../features/auth/presentation/providers/auth_provider.dart';
 
 class ProspeccionScreen extends ConsumerStatefulWidget {
@@ -58,7 +59,7 @@ class _ProspeccionScreenState extends ConsumerState<ProspeccionScreen> {
         elevation: 0,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: context.respPad(all: 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -76,7 +77,9 @@ class _ProspeccionScreenState extends ConsumerState<ProspeccionScreen> {
               const SizedBox(height: 20),
               _ResultadoCard(resultado: state.resultado!),
             ],
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
+            _CampanasSection(),
+            const SizedBox(height: 24),
             _DesertorSection(notifier: notifier),
             const SizedBox(height: 32),
           ],
@@ -419,6 +422,162 @@ class DatePickerField extends StatelessWidget {
           style: TextStyle(
             color: value != null ? AppColors.textPrimary : AppColors.textHint,
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CampanasSection extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final campanasAsync = ref.watch(campanasProvider);
+
+    return campanasAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (campanas) {
+        if (campanas.isEmpty) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.campaign_outlined, color: AppColors.primary, size: 22),
+                const SizedBox(width: 8),
+                Text(
+                  'Campañas activas',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 18,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ...campanas.map((c) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _CampanaCard(campana: c),
+            )),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _CampanaCard extends StatelessWidget {
+  final CampanaActivaModel campana;
+
+  const _CampanaCard({required this.campana});
+
+  Color _tipoColor(TipoCampana tipo) {
+    switch (tipo) {
+      case TipoCampana.renovacion:
+        return const Color(0xFF1E40AF);
+      case TipoCampana.ampliacion:
+        return const Color(0xFF065F46);
+      case TipoCampana.productoParalelo:
+        return const Color(0xFF9A3412);
+    }
+  }
+
+  Color _tipoBg(TipoCampana tipo) {
+    switch (tipo) {
+      case TipoCampana.renovacion:
+        return const Color(0xFFDBEAFE);
+      case TipoCampana.ampliacion:
+        return const Color(0xFFD1FAE5);
+      case TipoCampana.productoParalelo:
+        return const Color(0xFFFFEDD5);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _tipoBg(campana.tipo),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    campana.tipoLabel,
+                    style: TextStyle(
+                      color: _tipoColor(campana.tipo),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.warning.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    '${campana.diasRestantes} días',
+                    style: TextStyle(
+                      color: AppColors.warning,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              campana.nombreCliente,
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w600,
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Monto ofertado: ${Formatters.currency(campana.montoOfertado)}',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.of(context).pushNamed('/solicitud', arguments: {
+                    'clienteId': campana.clienteId,
+                    'nombreCliente': campana.nombreCliente,
+                    'monto': campana.montoOfertado,
+                  });
+                },
+                icon: const Icon(Icons.arrow_forward, size: 18),
+                label: const Text('Gestionar ahora'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  side: const BorderSide(color: AppColors.primary),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

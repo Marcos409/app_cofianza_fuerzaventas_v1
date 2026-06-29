@@ -4,6 +4,8 @@ import '../../../core/constants/app_colors.dart';
 import '../../../shared/utils/formatters.dart';
 import '../../../shared/utils/calculadora_credito.dart';
 
+const double _teaReferencial = 0.25;
+
 class SimuladorScreen extends StatefulWidget {
   const SimuladorScreen({super.key});
 
@@ -21,7 +23,7 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
     try {
       return CalculadoraCredito.calcularCuotaTEA(
         monto: _monto,
-        tea: 0.25,
+        tea: _teaReferencial,
         plazoMeses: _plazoMeses,
       );
     } catch (_) {

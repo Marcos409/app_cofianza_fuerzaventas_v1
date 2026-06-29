@@ -1,12 +1,21 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/supabase/supabase_client.dart';
+// ════════════════════════════════════════════════════════════
+// 🔧 SUPABASE_COMENTADO: Desarrollando solo con PostgreSQL local - Junio 2026
+// ════════════════════════════════════════════════════════════
+// import '../../../core/supabase/supabase_client.dart';
+// ════════════════════════════════════════════════════════════
 import '../data/reportes_repository.dart';
 import 'reportes_notifier.dart';
 
 final reportesRepositoryProvider = Provider<ReportesRepository>((ref) {
-  return ReportesRepository(
-    SupabaseService.instance.client,
-  );
+  // ════════════════════════════════════════════════════════════
+  // 🔧 SUPABASE_COMENTADO: Constructor sin Supabase
+  // ════════════════════════════════════════════════════════════
+  // return ReportesRepository(
+  //   SupabaseService.instance.client,
+  // );
+  return ReportesRepository();
+  // ════════════════════════════════════════════════════════════
 });
 
 final supervisionProvider = StateNotifierProvider.autoDispose

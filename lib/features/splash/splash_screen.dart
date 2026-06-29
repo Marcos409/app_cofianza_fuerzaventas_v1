@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../auth/presentation/providers/auth_provider.dart';
 import '../../core/constants/app_colors.dart';
 
@@ -26,12 +27,15 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       CurvedAnimation(parent: _controller, curve: Curves.easeIn),
     );
     _controller.forward();
-    _checkSession();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _goToLogin());
   }
 
-  Future<void> _checkSession() async {
+  Future<void> _goToLogin() async {
     await Future.delayed(const Duration(milliseconds: 800));
-    ref.read(authProvider.notifier).checkSession();
+    if (!mounted) return;
+    await ref.read(authProvider.notifier).logout();
+    if (!mounted) return;
+    context.go('/login');
   }
 
   @override

@@ -1,8 +1,10 @@
 import 'dart:convert';
+import '../../../shared/utils/type_utils.dart';
 
 enum EstadoSolicitud {
   borrador,
   enviado,
+  enProceso,
   recibidoComite,
   enEvaluacion,
   aprobado,
@@ -16,6 +18,8 @@ enum EstadoSolicitud {
         return 'Borrador';
       case EstadoSolicitud.enviado:
         return 'Enviado';
+      case EstadoSolicitud.enProceso:
+        return 'En proceso';
       case EstadoSolicitud.recibidoComite:
         return 'Recibido comité';
       case EstadoSolicitud.enEvaluacion:
@@ -31,9 +35,17 @@ enum EstadoSolicitud {
     }
   }
 
+  static final Map<String, String> _backendMapping = {
+    'en_proceso': 'enProceso',
+    'recibido_comite': 'recibidoComite',
+    'en_evaluacion': 'enEvaluacion',
+    'pendiente': 'enviado',
+  };
+
   static EstadoSolicitud fromString(String value) {
+    final normalized = _backendMapping[value] ?? value;
     return EstadoSolicitud.values.firstWhere(
-      (e) => e.name == value,
+      (e) => e.name == normalized,
       orElse: () => EstadoSolicitud.borrador,
     );
   }
@@ -100,7 +112,7 @@ class DatosSolicitante {
   factory DatosSolicitante.fromMap(Map<String, dynamic> m) => DatosSolicitante(
     nombres: m['nombres']?.toString() ?? '',
     apellidos: m['apellidos']?.toString() ?? '',
-    documento: m['documento']?.toString() ?? '',
+    documento: m['documento']?.toString() ?? m['cliente_documento']?.toString() ?? '',
     fechaNacimiento: m['fecha_nacimiento'] != null
         ? DateTime.tryParse(m['fecha_nacimiento'].toString())
         : null,
@@ -179,11 +191,11 @@ class DatosNegocio {
     tipoNegocio: m['tipo_negocio']?.toString() ?? '',
     nombreNegocio: m['nombre_negocio']?.toString() ?? '',
     direccionNegocio: m['direccion_negocio']?.toString() ?? '',
-    antiguedadAnios: (m['antiguedad_anios'] as num?)?.toInt() ?? 0,
-    antiguedadMeses: (m['antiguedad_meses'] as num?)?.toInt() ?? 0,
-    ingresosMensuales: (m['ingresos_mensuales'] as num?)?.toDouble() ?? 0,
-    gastosMensuales: (m['gastos_mensuales'] as num?)?.toDouble() ?? 0,
-    patrimonio: (m['patrimonio'] as num?)?.toDouble() ?? 0,
+    antiguedadAnios: toIntSafe(m['antiguedad_anios']),
+    antiguedadMeses: toIntSafe(m['antiguedad_meses']),
+    ingresosMensuales: toDoubleSafe(m['ingresos_mensuales']),
+    gastosMensuales: toDoubleSafe(m['gastos_mensuales']),
+    patrimonio: toDoubleSafe(m['patrimonio']),
     destinoCredito: m['destino_credito']?.toString() ?? '',
     actividadEconomica: m['actividad_economica']?.toString() ?? '',
   );
@@ -229,8 +241,8 @@ class DatosCredito {
   };
 
   factory DatosCredito.fromMap(Map<String, dynamic> m) => DatosCredito(
-    montoSolicitado: (m['monto_solicitado'] as num?)?.toDouble() ?? 500,
-    plazoMeses: (m['plazo_meses'] as num?)?.toInt() ?? 12,
+    montoSolicitado: toDoubleSafe(m['monto_solicitado'], 500),
+    plazoMeses: toIntSafe(m['plazo_meses'], 12),
     moneda: m['moneda']?.toString() ?? 'PEN',
     tipoCuota: TipoCuota.values.firstWhere(
       (e) => e.name == m['tipo_cuota'],
@@ -334,17 +346,20 @@ class SolicitudModel {
   };
 
   factory SolicitudModel.fromBorradorMap(Map<String, dynamic> m) {
-    final datos = m['datos_json']?.toString();
-    if (datos != null && datos.isNotEmpty) {
+    final datosJson = m['datos_json'];
+    if (datosJson is Map) {
+      return SolicitudModel.fromJson(Map<String, dynamic>.from(datosJson));
+    }
+    if (datosJson is String && datosJson.isNotEmpty) {
       return SolicitudModel.fromJson(
-          Map<String, dynamic>.from(jsonDecode(datos)));
+          Map<String, dynamic>.from(jsonDecode(datosJson)));
     }
     return SolicitudModel(
       id: m['id']?.toString() ?? '',
       clienteId: m['cliente_id']?.toString() ?? '',
       nombreCliente: m['cliente_nombre']?.toString() ?? '',
       asesorId: m['asesor_id']?.toString() ?? '',
-      pasoActual: (m['paso_actual'] as num?)?.toInt() ?? 0,
+      pasoActual: toIntSafe(m['paso_actual']),
     );
   }
 
@@ -353,7 +368,7 @@ class SolicitudModel {
     'numero_expediente': numeroExpediente,
     'asesor_id': asesorId,
     'cliente_id': clienteId,
-    'nombre_cliente': nombreCliente,
+    'cliente_nombre': nombreCliente,
     'estado': estado.name,
     'paso_actual': pasoActual,
     ...solicitante.toMap(),
@@ -364,7 +379,7 @@ class SolicitudModel {
     'firma_cliente_base64': firmaBase64,
     'datos_veraces': datosVeraces,
     'pendiente_sync': pendienteSync ? 1 : 0,
-    'fecha_creacion': fechaCreacion?.toIso8601String(),
+    'created_at': fechaCreacion?.toIso8601String(),
     'fecha_actualizacion': fechaActualizacion?.toIso8601String(),
   };
 
@@ -373,19 +388,19 @@ class SolicitudModel {
     numeroExpediente: m['numero_expediente']?.toString() ?? '',
     asesorId: m['asesor_id']?.toString() ?? '',
     clienteId: m['cliente_id']?.toString() ?? '',
-    nombreCliente: m['nombre_cliente']?.toString() ?? '',
+    nombreCliente: m['cliente_nombre']?.toString() ?? '',
     estado: EstadoSolicitud.fromString(m['estado']?.toString() ?? ''),
-    pasoActual: (m['paso_actual'] as num?)?.toInt() ?? 0,
+    pasoActual: toIntSafe(m['paso_actual']),
     solicitante: DatosSolicitante.fromMap(m),
     negocio: DatosNegocio.fromMap(m),
     credito: DatosCredito.fromMap(m),
-    cuotaEstimada: (m['cuota_estimada'] as num?)?.toDouble() ?? 0,
-    teaReferencial: (m['tea_referencial'] as num?)?.toDouble() ?? 0,
+    cuotaEstimada: toDoubleSafe(m['cuota_estimada']),
+    teaReferencial: toDoubleSafe(m['tea_referencial']),
     firmaBase64: m['firma_cliente_base64']?.toString() ?? '',
     datosVeraces: m['datos_veraces'] ?? false,
-    pendienteSync: (m['pendiente_sync'] as num?)?.toInt() == 1,
-    fechaCreacion: m['fecha_creacion'] != null
-        ? DateTime.tryParse(m['fecha_creacion'].toString())
+    pendienteSync: toIntSafe(m['pendiente_sync']) == 1,
+    fechaCreacion: m['created_at'] != null
+        ? DateTime.tryParse(m['created_at'].toString())
         : null,
     fechaActualizacion: m['fecha_actualizacion'] != null
         ? DateTime.tryParse(m['fecha_actualizacion'].toString())

@@ -285,7 +285,7 @@ class _CarteraScreenState extends ConsumerState<CarteraScreen> {
             return ClienteCard(
               key: ValueKey(cliente.id),
               cliente: cliente,
-              onTap: () => context.push('/cliente/${cliente.clienteId}'),
+              onTap: () => context.push('/ficha/${cliente.clienteId}'),
               onMarcarVisita: () => _mostrarOpcionesVisita(cliente),
             );
           },
@@ -358,7 +358,7 @@ class _CarteraScreenState extends ConsumerState<CarteraScreen> {
                       onPressed: () {
                         final id = cliente.clienteId;
                         Navigator.of(ctx).pop();
-                        this.context.push('/cliente/$id');
+                        this.context.push('/ficha/$id');
                       },
                       icon: const Icon(Icons.person_outline, size: 18),
                       label: const Text('Ver ficha del cliente'),

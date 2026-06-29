@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/services/notification_service.dart';
 import '../../../features/documentos/domain/documento_model.dart';
 import '../../../features/solicitud/domain/solicitud_model.dart';
 import '../data/transmision_repository.dart';
@@ -78,6 +79,7 @@ class TransmisionNotifier extends StateNotifier<TransmisionState> {
   final List<DocumentoModel> _documentos;
   final bool _tieneConsultaBuro;
   StreamSubscription<List<Map<String, dynamic>>>? _realtimeSubscription;
+  String? _estadoAnterior;
 
   TransmisionNotifier(
     this._repository, {
@@ -106,11 +108,55 @@ class TransmisionNotifier extends StateNotifier<TransmisionState> {
       final expediente = rows.first['numero_expediente']?.toString();
       if (estado != null) {
         state = state.copyWith(estadoRealtime: estado);
+        if (_estadoAnterior != null && _estadoAnterior != estado) {
+          _notificarCambioEstado(estado, rows.first);
+        }
+        _estadoAnterior = estado;
       }
       if (expediente != null && state.expedienteGenerado == null) {
         state = state.copyWith(expedienteGenerado: expediente);
       }
     });
+  }
+
+  void _notificarCambioEstado(String estado, Map<String, dynamic> row) {
+    final cliente = row['nombre_cliente']?.toString() ?? 'Cliente';
+    final expediente = row['numero_expediente']?.toString() ?? '';
+    final monto = double.tryParse(row['monto_aprobado']?.toString() ?? '');
+    final fechaDesembolso = row['fecha_desembolso_estimada']?.toString();
+    final motivoRechazo = row['motivo_rechazo']?.toString();
+    final condicion = row['condicion_adicional']?.toString();
+
+    String title;
+    String body;
+
+    switch (estado) {
+      case 'recibido_comite':
+        title = 'Solicitud recibida';
+        body = '$cliente — Expediente $expediente en evaluación';
+      case 'aprobado':
+        title = 'Crédito aprobado';
+        final montoStr = monto != null ? 'S/${monto.toStringAsFixed(0)}' : '';
+        final fecha = fechaDesembolso != null ? ' Desembolso: $fechaDesembolso' : '';
+        body = '$cliente — $montoStr aprobado.$fecha';
+      case 'condicionado':
+        title = 'Solicitud condicionada';
+        body = '$cliente — ${condicion ?? 'Ver condiciones adicionales'}';
+      case 'rechazado':
+        title = 'Solicitud rechazada';
+        body = '$cliente — ${motivoRechazo ?? 'Sin motivo especificado'}';
+      case 'desembolsado':
+        title = 'Crédito desembolsado';
+        body = '$cliente puede retirar en agencia';
+      default:
+        return;
+    }
+
+    NotificationService.instance.showNotification(
+      id: _solicitudId.hashCode,
+      title: title,
+      body: body,
+    );
   }
 
   Future<void> verificarReanudacion() async {
@@ -131,7 +177,6 @@ class TransmisionNotifier extends StateNotifier<TransmisionState> {
       solicitudId: _solicitudId,
       solicitud: _solicitud,
       documentos: _documentos,
-      tieneConsultaBuro: _tieneConsultaBuro,
     );
     state = state.copyWith(erroresPreValidacion: errores);
     return errores;

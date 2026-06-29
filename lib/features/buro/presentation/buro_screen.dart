@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../shared/utils/responsive.dart';
 import '../../../shared/widgets/signature_pad.dart';
 import '../domain/consulta_buro_model.dart';
 import 'buro_providers.dart';
@@ -89,7 +90,7 @@ class _BuroScreenState extends ConsumerState<BuroScreen> {
 
   Widget _buildConsentimiento(BuroState state, BuroNotifier notifier) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: context.respPad(all: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -175,7 +176,7 @@ class _BuroScreenState extends ConsumerState<BuroScreen> {
 
   Widget _buildSignaturePad(BuroNotifier notifier) {
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: context.respPad(all: 16),
       child: Column(
         children: [
           const Text(
@@ -209,7 +210,7 @@ class _BuroScreenState extends ConsumerState<BuroScreen> {
   Widget _buildResultado(BuroState state, BuroNotifier notifier) {
     final consulta = state.consultaActual!;
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: context.respPad(all: 16),
       child: Column(
         children: [
           _SemaforoRiesgoGrande(
@@ -288,7 +289,7 @@ class _BuroScreenState extends ConsumerState<BuroScreen> {
   Widget _buildBloqueado(BuroState state) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: context.respPad(all: 24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

@@ -104,7 +104,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                   _buildPasswordField(),
                   const SizedBox(height: 8),
                   _buildForgotPassword(),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 12),
+                  _buildAttemptsIndicator(authState),
+                  const SizedBox(height: 12),
                   _buildLoginButton(authState),
                   if (authState.isBlocked) _buildBlockedBanner(),
                 ],
@@ -240,6 +242,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         ),
         child: const Text('¿Problemas para ingresar?'),
       ),
+    );
+  }
+
+  Widget _buildAttemptsIndicator(AuthState authState) {
+    if (authState.remainingAttempts >= 5 || authState.isBlocked) return const SizedBox.shrink();
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(Icons.info_outline, size: 14, color: AppColors.warning),
+        const SizedBox(width: 6),
+        Text(
+          'Intentos restantes: ${authState.remainingAttempts} de 5',
+          style: TextStyle(
+            color: AppColors.warning,
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
     );
   }
 

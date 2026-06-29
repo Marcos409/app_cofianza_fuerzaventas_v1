@@ -47,6 +47,7 @@ class _SolicitudScreenState extends ConsumerState<SolicitudScreen> {
   late final TextEditingController _direccionCtrl;
   late final TextEditingController _ingresosCtrl;
   late final TextEditingController _gastosCtrl;
+  late final TextEditingController _patrimonioCtrl;
   late final TextEditingController _destinoCtrl;
 
   @override
@@ -97,6 +98,8 @@ class _SolicitudScreenState extends ConsumerState<SolicitudScreen> {
         text: state.negocio.ingresosMensuales > 0 ? state.negocio.ingresosMensuales.toStringAsFixed(0) : '');
     _gastosCtrl = TextEditingController(
         text: state.negocio.gastosMensuales > 0 ? state.negocio.gastosMensuales.toStringAsFixed(0) : '');
+    _patrimonioCtrl = TextEditingController(
+        text: state.negocio.patrimonio > 0 ? state.negocio.patrimonio.toStringAsFixed(0) : '');
     _destinoCtrl = TextEditingController(text: state.negocio.destinoCredito);
 
     final notifier = ref.read(solicitudProvider.notifier);
@@ -110,6 +113,7 @@ class _SolicitudScreenState extends ConsumerState<SolicitudScreen> {
     _direccionCtrl.addListener(() => notifier.updateNegocio(ref.read(solicitudProvider).negocio.copyWith(direccionNegocio: _direccionCtrl.text)));
     _ingresosCtrl.addListener(() => notifier.updateNegocio(ref.read(solicitudProvider).negocio.copyWith(ingresosMensuales: double.tryParse(_ingresosCtrl.text) ?? 0)));
     _gastosCtrl.addListener(() => notifier.updateNegocio(ref.read(solicitudProvider).negocio.copyWith(gastosMensuales: double.tryParse(_gastosCtrl.text) ?? 0)));
+    _patrimonioCtrl.addListener(() => notifier.updateNegocio(ref.read(solicitudProvider).negocio.copyWith(patrimonio: double.tryParse(_patrimonioCtrl.text) ?? 0)));
     _destinoCtrl.addListener(() => notifier.updateNegocio(ref.read(solicitudProvider).negocio.copyWith(destinoCredito: _destinoCtrl.text)));
   }
 
@@ -125,6 +129,7 @@ class _SolicitudScreenState extends ConsumerState<SolicitudScreen> {
     _direccionCtrl.dispose();
     _ingresosCtrl.dispose();
     _gastosCtrl.dispose();
+    _patrimonioCtrl.dispose();
     _destinoCtrl.dispose();
     super.dispose();
   }
@@ -167,6 +172,10 @@ class _SolicitudScreenState extends ConsumerState<SolicitudScreen> {
       }
       if (next.negocio.destinoCredito != _destinoCtrl.text) {
         _destinoCtrl.text = next.negocio.destinoCredito;
+      }
+      final patrimonioText = next.negocio.patrimonio > 0 ? next.negocio.patrimonio.toStringAsFixed(0) : '';
+      if (patrimonioText != _patrimonioCtrl.text) {
+        _patrimonioCtrl.text = patrimonioText;
       }
 
       if (_pageController.hasClients && _pageController.page?.round() != next.pasoActual) {
@@ -279,6 +288,7 @@ class _SolicitudScreenState extends ConsumerState<SolicitudScreen> {
                 direccionCtrl: _direccionCtrl,
                 ingresosCtrl: _ingresosCtrl,
                 gastosCtrl: _gastosCtrl,
+                patrimonioCtrl: _patrimonioCtrl,
                 destinoCtrl: _destinoCtrl,
               ),
               _Paso3(state: state, notifier: notifier),
@@ -457,8 +467,8 @@ class _Paso1 extends StatelessWidget {
               final picked = await showDatePicker(
                 context: context,
                 initialDate: s.fechaNacimiento ?? DateTime(1995, 1, 1),
-                firstDate: DateTime(DateTime.now().year - 75),
-                lastDate: DateTime(DateTime.now().year - 18),
+                firstDate: DateTime(DateTime.now().year - 75, 1, 1),
+                lastDate: DateTime.now().subtract(const Duration(days: 365 * 18)),
                 locale: const Locale('es'),
               );
               if (picked != null) {
@@ -495,6 +505,17 @@ class _Paso1 extends StatelessWidget {
             },
           ),
           const SizedBox(height: 12),
+          _dropdown(
+            label: 'Grado de instrucción',
+            value: s.gradoInstruccion.isEmpty ? null : s.gradoInstruccion,
+            items: const ['Primaria', 'Secundaria', 'Técnico', 'Universitario'],
+            onChanged: (v) {
+              if (v != null) {
+                notifier.updateSolicitante(s.copyWith(gradoInstruccion: v));
+              }
+            },
+          ),
+          const SizedBox(height: 12),
           _campo(
             label: 'Teléfono',
             controller: telefonoCtrl,
@@ -525,6 +546,7 @@ class _Paso2 extends StatelessWidget {
   final TextEditingController direccionCtrl;
   final TextEditingController ingresosCtrl;
   final TextEditingController gastosCtrl;
+  final TextEditingController patrimonioCtrl;
   final TextEditingController destinoCtrl;
 
   const _Paso2({
@@ -534,6 +556,7 @@ class _Paso2 extends StatelessWidget {
     required this.direccionCtrl,
     required this.ingresosCtrl,
     required this.gastosCtrl,
+    required this.patrimonioCtrl,
     required this.destinoCtrl,
   });
 
@@ -610,6 +633,45 @@ class _Paso2 extends StatelessWidget {
             icon: Icons.money_off_outlined,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             prefix: 'S/ ',
+          ),
+          const SizedBox(height: 12),
+          _campo(
+            label: 'Patrimonio estimado (opcional)',
+            controller: patrimonioCtrl,
+            icon: Icons.account_balance_outlined,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            prefix: 'S/ ',
+          ),
+          const SizedBox(height: 12),
+          _dropdown(
+            label: 'Actividad económica (CIIU)',
+            value: n.actividadEconomica.isEmpty
+                ? null
+                : n.actividadEconomica,
+            items: const [
+              'Agricultura, ganadería, silvicultura',
+              'Pesca',
+              'Explotación de minas',
+              'Industrias manufactureras',
+              'Construcción',
+              'Comercio al por mayor y menor',
+              'Transporte y almacenamiento',
+              'Alojamiento y servicios de comida',
+              'Información y comunicaciones',
+              'Actividades financieras',
+              'Actividades inmobiliarias',
+              'Actividades profesionales',
+              'Servicios administrativos',
+              'Enseñanza',
+              'Servicios de salud',
+              'Arte y entretenimiento',
+              'Otros servicios',
+            ],
+            onChanged: (v) {
+              if (v != null) {
+                notifier.updateNegocio(n.copyWith(actividadEconomica: v));
+              }
+            },
           ),
           const SizedBox(height: 12),
           _campo(
@@ -719,7 +781,7 @@ class _Paso3 extends StatelessWidget {
             plazo: c.plazoMeses,
             cuota: state.cuotaEstimada,
             totalPagar: state.totalPagarEstimado,
-            tea: 0.25,
+            tea: teaReferencialDefault,
           ),
           const SizedBox(height: 24),
         ],

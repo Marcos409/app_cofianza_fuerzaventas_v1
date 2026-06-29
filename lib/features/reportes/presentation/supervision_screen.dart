@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../shared/utils/responsive.dart';
 import '../domain/avance_asesor.dart';
 import 'reportes_providers.dart';
 import 'reportes_notifier.dart';
@@ -75,7 +76,7 @@ class _SupervisionScreenState extends ConsumerState<SupervisionScreen> {
         zoom: 13,
       ),
       markers: _markers,
-      myLocationEnabled: false,
+      myLocationEnabled: true,
       zoomControlsEnabled: true,
     );
   }
@@ -102,7 +103,7 @@ class _SupervisionScreenState extends ConsumerState<SupervisionScreen> {
           ),
           Expanded(
             child: ListView.separated(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+              padding: EdgeInsets.symmetric(horizontal: context.wp(3.2)),
               itemCount: asesores.length,
               separatorBuilder: (_, _) => const Divider(height: 1),
               itemBuilder: (_, i) => _buildFilaAsesor(asesores[i]),

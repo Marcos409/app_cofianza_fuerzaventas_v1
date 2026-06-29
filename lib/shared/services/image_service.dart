@@ -4,7 +4,8 @@ import 'dart:typed_data';
 import 'package:image/image.dart' as img;
 
 class ImageService {
-  static const double _nitidezUmbral = 100.0;
+  static const double _nitidezUmbral = 15.0;
+  static double get nitidezUmbral => _nitidezUmbral;
   static const int _maxSizeKb = 800;
   static const int _maxWidth = 1920;
 

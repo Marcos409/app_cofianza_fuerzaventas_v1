@@ -1,7 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 import '../data/solicitud_repository.dart';
 import '../domain/solicitud_model.dart';
 import '../../../shared/utils/calculadora_credito.dart';
+
+const double teaReferencialDefault = 0.25;
 
 class SolicitudFormState {
   final int pasoActual;
@@ -105,7 +108,7 @@ class SolicitudFormState {
     try {
       final result = CalculadoraCredito.calcularCuotaTEA(
         monto: credito.montoSolicitado,
-        tea: 0.25,
+        tea: teaReferencialDefault,
         plazoMeses: credito.plazoMeses,
       );
       return (result['cuota'] as num?)?.toDouble() ?? 0;
@@ -254,8 +257,7 @@ class SolicitudNotifier extends StateNotifier<SolicitudFormState> {
 
   SolicitudModel _buildSolicitud(String asesorId, EstadoSolicitud estado) {
     return SolicitudModel(
-      id: state.solicitudId ??
-          DateTime.now().millisecondsSinceEpoch.toString(),
+      id: state.solicitudId ?? const Uuid().v4(),
       asesorId: asesorId,
       estado: estado,
       pasoActual: state.pasoActual,
@@ -263,7 +265,7 @@ class SolicitudNotifier extends StateNotifier<SolicitudFormState> {
       negocio: state.negocio,
       credito: state.credito,
       cuotaEstimada: state.cuotaEstimada,
-      teaReferencial: 0.25,
+      teaReferencial: teaReferencialDefault,
       firmaBase64: state.firmaBase64,
       datosVeraces: state.datosVeraces,
       pendienteSync: true,
@@ -275,7 +277,7 @@ class SolicitudNotifier extends StateNotifier<SolicitudFormState> {
   Future<Map<String, dynamic>> simularCuota({
     required double monto,
     required int plazoMeses,
-    double tea = 0.25,
+    double tea = teaReferencialDefault,
   }) async {
     return CalculadoraCredito.calcularCuotaTEA(
       monto: monto,

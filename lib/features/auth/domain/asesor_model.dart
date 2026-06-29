@@ -55,6 +55,8 @@ class AsesorModel {
   final String? tokenFcm;
   final bool activo;
   final String? token;
+  final String? email;
+  final String? telefono;
 
   const AsesorModel({
     required this.id,
@@ -67,6 +69,8 @@ class AsesorModel {
     this.tokenFcm,
     this.activo = true,
     this.token,
+    this.email,
+    this.telefono,
   });
 
   String get nombreCompleto => '$nombres $apellidos';
@@ -82,6 +86,8 @@ class AsesorModel {
     String? tokenFcm,
     bool? activo,
     String? token,
+    String? email,
+    String? telefono,
   }) {
     return AsesorModel(
       id: id ?? this.id,
@@ -94,6 +100,8 @@ class AsesorModel {
       tokenFcm: tokenFcm ?? this.tokenFcm,
       activo: activo ?? this.activo,
       token: token ?? this.token,
+      email: email ?? this.email,
+      telefono: telefono ?? this.telefono,
     );
   }
 
@@ -107,6 +115,8 @@ class AsesorModel {
     'perfil': rol.jsonValue,
     'token_fcm': tokenFcm,
     'activo': activo,
+    'email': email,
+    'telefono': telefono,
   };
 
   factory AsesorModel.fromJson(Map<String, dynamic> json) => AsesorModel(
@@ -120,5 +130,7 @@ class AsesorModel {
     tokenFcm: json['token_fcm']?.toString(),
     activo: json['activo'] ?? true,
     token: json['token']?.toString(),
+    email: json['email']?.toString(),
+    telefono: json['telefono']?.toString(),
   );
 }

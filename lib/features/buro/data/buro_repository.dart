@@ -1,32 +1,33 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/network/network_monitor.dart';
+import '../../../core/network/api_client.dart';
+import '../../../core/cache/local_cache.dart';
 import '../domain/consulta_buro_model.dart';
 
 class BuroRepository {
-  final SupabaseClient _supabase;
   final NetworkMonitor _network;
+  final ApiClient _api;
+  final LocalCache _cache;
+  String? _asesorId;
 
-  BuroRepository(this._supabase, this._network);
+  BuroRepository(this._network, this._api, this._cache);
 
-  Future<ConsultaBuroModel?> consultarReciente(
-    String clienteId,
-  ) async {
-    final hace30Dias = DateTime.now()
-        .subtract(const Duration(days: 30))
-        .toIso8601String();
+  set asesorId(String id) => _asesorId = id;
+
+  Future<ConsultaBuroModel?> consultarReciente(String clienteId) async {
     try {
-      final response = await _supabase
-          .from('consultas_buro')
-          .select()
-          .eq('cliente_id', clienteId)
-          .gte('created_at', hace30Dias)
-          .order('created_at', ascending: false)
-          .limit(1)
-          .maybeSingle();
-      if (response == null) return null;
-      return ConsultaBuroModel.fromMap(Map<String, dynamic>.from(response));
+      final data = await _api.get<Map<String, dynamic>?>(
+        '/buro/consultas/reciente',
+        params: {'cliente_id': clienteId},
+      );
+      if (data == null) return null;
+      return ConsultaBuroModel.fromMap(data);
     } catch (_) {
+      final cached =
+          await _cache.getCached('buro_cache', _asesorId ?? clienteId);
+      if (cached is Map<String, dynamic>) {
+        return ConsultaBuroModel.fromMap(cached);
+      }
       return null;
     }
   }
@@ -40,116 +41,59 @@ class BuroRepository {
   }) async {
     final connected = await _network.isConnected;
 
+    if (connected) {
+      try {
+        final data = await _api.post<Map<String, dynamic>>(
+          '/buro/consultar',
+          data: {
+            'asesor_id': asesorId,
+            'cliente_id': clienteId,
+            'dni': dniCliente,
+            'firma_consentimiento': firmaBase64,
+            'solicitud_id': solicitudId,
+          },
+        );
+        final consulta = ConsultaBuroModel.fromMap(data);
+        await _cache.cacheJson('buro_cache', clienteId, asesorId, data);
+        return consulta;
+      } catch (_) {}
+    }
+
     final id = const Uuid().v4();
-
-    if (!connected) {
-      return ConsultaBuroModel(
-        id: id,
-        asesorId: asesorId,
-        clienteId: clienteId,
-        dniConsultado: dniCliente,
-        resultado: const ResultadoBuro(
-          calificacionSbs: CalificacionSbs.normal,
-          numEntidadesDeuda: 0,
-          deudaTotal: 0,
-          mayorDeuda: 0,
-          diasMayorMora: 0,
-        ),
-        firmaConsentimientoBase64: firmaBase64,
-        solicitudId: solicitudId,
-        createdAt: DateTime.now(),
-      );
-    }
-
-    try {
-      final response = await _supabase.functions.invoke(
-        'consulta-buro',
-        body: {
-          'dni': dniCliente,
-          'firma_consentimiento': firmaBase64,
-        },
-      );
-
-      final data = Map<String, dynamic>.from(response.data as Map);
-
-      final enListaNegra = data['en_lista_negra'] as bool? ?? false;
-      final resultadoBuro = Map<String, dynamic>.from(
-        data['resultado_buro'] as Map? ?? {},
-      );
-
-      final resultado = ResultadoBuro.fromJson(resultadoBuro);
-
-      final consulta = ConsultaBuroModel(
-        id: id,
-        asesorId: asesorId,
-        clienteId: clienteId,
-        dniConsultado: dniCliente,
-        resultado: resultado,
-        enListaNegra: enListaNegra,
-        motivoBloqueo: data['motivo_bloqueo'] as String?,
-        firmaConsentimientoBase64: firmaBase64,
-        solicitudId: solicitudId,
-        createdAt: DateTime.now(),
-      );
-
-      await _guardarConsulta(consulta);
-      return consulta;
-    } catch (e) {
-      return ConsultaBuroModel(
-        id: id,
-        asesorId: asesorId,
-        clienteId: clienteId,
-        dniConsultado: dniCliente,
-        resultado: const ResultadoBuro(
-          calificacionSbs: CalificacionSbs.normal,
-          numEntidadesDeuda: 0,
-          deudaTotal: 0,
-          mayorDeuda: 0,
-          diasMayorMora: 0,
-        ),
-        firmaConsentimientoBase64: firmaBase64,
-        solicitudId: solicitudId,
-        createdAt: DateTime.now(),
-      );
-    }
-  }
-
-  Future<void> guardarReutilizacion(ConsultaBuroModel consultaOriginal) async {
     final consulta = ConsultaBuroModel(
-      id: const Uuid().v4(),
-      asesorId: consultaOriginal.asesorId,
-      clienteId: consultaOriginal.clienteId,
-      dniConsultado: consultaOriginal.dniConsultado,
-      resultado: consultaOriginal.resultado,
-      enListaNegra: consultaOriginal.enListaNegra,
-      motivoBloqueo: consultaOriginal.motivoBloqueo,
-      firmaConsentimientoBase64: consultaOriginal.firmaConsentimientoBase64,
-      solicitudId: consultaOriginal.solicitudId,
-      esReutilizada: true,
+      id: id,
+      asesorId: asesorId,
+      clienteId: clienteId,
+      dniConsultado: dniCliente,
+      resultado: const ResultadoBuro(
+        calificacionSbs: CalificacionSbs.normal,
+        numEntidadesDeuda: 0,
+        deudaTotal: 0,
+        mayorDeuda: 0,
+        diasMayorMora: 0,
+      ),
+      firmaConsentimientoBase64: firmaBase64,
+      solicitudId: solicitudId,
       createdAt: DateTime.now(),
     );
-    await _guardarConsulta(consulta);
+
+    if (!connected) {
+      await _cache.enqueueSync('buro', clienteId, 'INSERT', consulta.toMap());
+    }
+    return consulta;
   }
 
-  Future<void> _guardarConsulta(ConsultaBuroModel consulta) async {
+  Future<void> guardarReutilizacion(
+      ConsultaBuroModel consultaOriginal) async {
     try {
-      await _supabase.from('consultas_buro').insert({
-        'id': consulta.id,
-        'asesor_id': consulta.asesorId,
-        'cliente_id': consulta.clienteId,
-        'dni_consultado': consulta.dniConsultado,
-        'calificacion_sbs': consulta.resultado.calificacionSbs.name,
-        'entidades_con_deuda': consulta.resultado.numEntidadesDeuda,
-        'deuda_total_pen': consulta.resultado.deudaTotal,
-        'mayor_deuda': consulta.resultado.mayorDeuda,
-        'dias_mayor_mora': consulta.resultado.diasMayorMora,
-        'resultado_json': consulta.resultado.toJson(),
-        'en_lista_negra': consulta.enListaNegra,
-        'motivo_bloqueo': consulta.motivoBloqueo,
-        'firma_consentimiento_base64': consulta.firmaConsentimientoBase64,
-        'solicitud_id': consulta.solicitudId,
-        'created_at': consulta.createdAt.toIso8601String(),
+      await _api.post('/buro/reutilizar', data: {
+        'consulta_original_id': consultaOriginal.id,
+        'asesor_id': consultaOriginal.asesorId,
+        'cliente_id': consultaOriginal.clienteId,
       });
-    } catch (_) {}
+    } catch (_) {
+      await _cache.enqueueSync('buro_reutilizar', consultaOriginal.id,
+          'INSERT', consultaOriginal.toMap());
+    }
   }
 }

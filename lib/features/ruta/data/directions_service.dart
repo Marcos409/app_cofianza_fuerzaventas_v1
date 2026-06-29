@@ -5,7 +5,7 @@ import '../../../shared/utils/decode_polyline.dart';
 
 class DirectionsService {
   static const String _apiKey =
-      String.fromEnvironment('GOOGLE_MAPS_API_KEY', defaultValue: '');
+      String.fromEnvironment('GOOGLE_MAPS_API_KEY', defaultValue: 'AIzaSyBIZrptkE0IGakPhzMzMpq4PaW_gw_D1vk');
 
   static const _baseUrl = 'https://maps.googleapis.com/maps/api/directions/json';
 

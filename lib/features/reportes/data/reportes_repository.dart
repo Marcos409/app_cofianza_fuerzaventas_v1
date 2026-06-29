@@ -1,115 +1,128 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
+// ════════════════════════════════════════════════════════════
+// 🔧 SUPABASE_COMENTADO: Reportes devolviendo datos mock - Junio 2026
+// ════════════════════════════════════════════════════════════
+// import 'package:supabase_flutter/supabase_flutter.dart';
 import '../domain/productividad_asesor.dart';
 import '../domain/avance_asesor.dart';
 
 class ReportesRepository {
-  final SupabaseClient _supabase;
+  // ════════════════════════════════════════════════════════════
+  // 🔧 SUPABASE_COMENTADO: Sin SupabaseClient - datos mock
+  // ════════════════════════════════════════════════════════════
+  // final SupabaseClient _supabase;
+  // ════════════════════════════════════════════════════════════
 
-  ReportesRepository(this._supabase);
+  // ════════════════════════════════════════════════════════════
+  // 🔧 SUPABASE_COMENTADO: Constructor sin parámetros
+  // ════════════════════════════════════════════════════════════
+  // ReportesRepository(this._supabase);
+  ReportesRepository();
+  // ════════════════════════════════════════════════════════════
 
+  // ════════════════════════════════════════════════════════════
+  // 🔧 SUPABASE_COMENTADO: Consultas Supabase desactivadas - usando datos mock
+  // ════════════════════════════════════════════════════════════
+  // Future<List<AvanceAsesor>> getAvanceDiario(String agenciaId) async {
+  //   try {
+  //     final response = await _supabase.from('cartera_diaria')...
+  //   } catch (_) {
+  //     return _mockAvanceDiario();
+  //   }
+  // }
   Future<List<AvanceAsesor>> getAvanceDiario(String agenciaId) async {
-    final response = await _supabase
-        .from('cartera_diaria')
-        .select('''
-          asesor_id,
-          fecha_asignacion,
-          estado_visita,
-          lat_visita,
-          lng_visita,
-          timestamp_visita
-        ''')
-        .eq('agencia_id', agenciaId);
-
-    final rows = response as List;
-    final map = <String, _AsesorAvance>{};
-
-    for (final row in rows) {
-      final asesorId = row['asesor_id']?.toString() ?? '';
-      if (asesorId.isEmpty) continue;
-      final e = map.putIfAbsent(asesorId, () => _AsesorAvance());
-      e.total++;
-      if (row['estado_visita']?.toString() == 'visitado') {
-        e.visitados++;
-      }
-      final lat = (row['lat_visita'] as num?)?.toDouble();
-      final lng = (row['lng_visita'] as num?)?.toDouble();
-      if (lat != null && lng != null) {
-        e.lat = lat;
-        e.lng = lng;
-      }
-      final ts = row['timestamp_visita']?.toString();
-      if (ts != null && (e.ultimaSync == null || ts.compareTo(e.ultimaSync!) > 0)) {
-        e.ultimaSync = ts;
-      }
-    }
-
-    return map.entries.map((e) {
-      final v = e.value;
-      return AvanceAsesor(
-        asesorId: e.key,
-        nombreAsesor: e.key,
-        visitados: v.visitados,
-        totalAsignados: v.total,
-        progreso: v.total > 0 ? v.visitados / v.total : 0,
-        ultimaSincronizacion: v.ultimaSync,
-        lat: v.lat,
-        lng: v.lng,
-      );
-    }).toList();
+    return _mockAvanceDiario();
   }
 
+  // ════════════════════════════════════════════════════════════
+  // 🔧 SUPABASE_COMENTADO: Consultas Supabase desactivadas - usando datos mock
+  // ════════════════════════════════════════════════════════════
+  // Future<ReporteMensual> getProductividad(String agenciaId, int mes, int anio) async {
+  //   try {
+  //     final response = await _supabase.from('solicitudes_credito')...
+  //   } catch (_) {
+  //     return _mockProductividad();
+  //   }
+  // }
   Future<ReporteMensual> getProductividad(
     String agenciaId,
     int mes,
     int anio,
   ) async {
-    final inicio = DateTime(anio, mes, 1);
-    final fin = DateTime(anio, mes + 1, 1);
+    return _mockProductividad();
+  }
 
-    final response = await _supabase
-        .from('solicitudes_credito')
-        .select('asesor_id, estado, monto_solicitado')
-        .eq('agencia_id', agenciaId)
-        .gte('created_at', inicio.toIso8601String())
-        .lt('created_at', fin.toIso8601String());
+  List<AvanceAsesor> _mockAvanceDiario() {
+    return [
+      AvanceAsesor(
+        asesorId: 'mock-001',
+        nombreAsesor: 'Carlos García',
+        visitados: 5,
+        totalAsignados: 8,
+        progreso: 0.625,
+        ultimaSincronizacion: DateTime.now().toIso8601String(),
+        lat: -12.046374,
+        lng: -77.042793,
+      ),
+      AvanceAsesor(
+        asesorId: 'mock-002',
+        nombreAsesor: 'María Fernández',
+        visitados: 3,
+        totalAsignados: 10,
+        progreso: 0.3,
+        ultimaSincronizacion: DateTime.now().toIso8601String(),
+        lat: -12.0521,
+        lng: -77.0456,
+      ),
+      AvanceAsesor(
+        asesorId: 'mock-003',
+        nombreAsesor: 'Admin Sistema',
+        visitados: 8,
+        totalAsignados: 8,
+        progreso: 1.0,
+        ultimaSincronizacion: DateTime.now().toIso8601String(),
+        lat: -12.0654,
+        lng: -77.0289,
+      ),
+    ];
+  }
 
-    final rows = response as List;
-    final asesores = <String, _AsesorProd>{};
-
-    for (final row in rows) {
-      final asesorId = row['asesor_id']?.toString() ?? '';
-      if (asesorId.isEmpty) continue;
-      final e = asesores.putIfAbsent(asesorId, () => _AsesorProd());
-      final estado = row['estado']?.toString() ?? '';
-      e.enviadas++;
-      if (estado == 'aprobado') e.aprobadas++;
-      if (estado == 'desembolsado') {
-        e.desembolsadas++;
-        e.montoTotal += (row['monto_solicitado'] as num?)?.toDouble() ?? 0;
-      }
-    }
-
-    final lista = asesores.entries.map((e) {
-      final v = e.value;
-      return ProductividadAsesor(
-        asesorId: e.key,
-        nombreAsesor: e.key,
-        enviadas: v.enviadas,
-        aprobadas: v.aprobadas,
-        desembolsadas: v.desembolsadas,
-        montoTotalAprobado: v.montoTotal,
-        tasaAprobacion: v.enviadas > 0
-            ? (v.aprobadas + v.desembolsadas) / v.enviadas * 100
-            : 0,
-      );
-    }).toList();
+  ReporteMensual _mockProductividad() {
+    final asesores = [
+      ProductividadAsesor(
+        asesorId: 'mock-001',
+        nombreAsesor: 'Carlos García',
+        enviadas: 12,
+        aprobadas: 8,
+        desembolsadas: 5,
+        montoTotalAprobado: 45000,
+        tasaAprobacion: 66.67,
+      ),
+      ProductividadAsesor(
+        asesorId: 'mock-002',
+        nombreAsesor: 'María Fernández',
+        enviadas: 9,
+        aprobadas: 6,
+        desembolsadas: 4,
+        montoTotalAprobado: 32000,
+        tasaAprobacion: 66.67,
+      ),
+      ProductividadAsesor(
+        asesorId: 'mock-003',
+        nombreAsesor: 'Admin Sistema',
+        enviadas: 18,
+        aprobadas: 14,
+        desembolsadas: 10,
+        montoTotalAprobado: 95000,
+        tasaAprobacion: 77.78,
+      ),
+    ];
 
     return ReporteMensual(
-      asesores: lista,
-      totalEnviadas: lista.fold(0, (s, a) => s + a.enviadas),
-      totalAprobadas: lista.fold(0, (s, a) => s + a.aprobadas),
-      totalDesembolsadas: lista.fold(0, (s, a) => s + a.desembolsadas),
-      montoTotal: lista.fold(0.0, (s, a) => s + a.montoTotalAprobado),
+      asesores: asesores,
+      totalEnviadas: asesores.fold(0, (s, a) => s + a.enviadas),
+      totalAprobadas: asesores.fold(0, (s, a) => s + a.aprobadas),
+      totalDesembolsadas: asesores.fold(0, (s, a) => s + a.desembolsadas),
+      montoTotal: asesores.fold(0.0, (s, a) => s + a.montoTotalAprobado),
     );
   }
 }

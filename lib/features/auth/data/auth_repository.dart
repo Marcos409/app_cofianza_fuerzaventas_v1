@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'auth_remote_datasource.dart';
-import 'mock_asesores.dart';
 import '../domain/asesor_model.dart';
 import '../../../core/storage/local_db.dart';
+import '../../../core/cache/local_cache.dart';
 
 class AuthRepository {
   static const int maxAttempts = 5;
@@ -23,18 +23,9 @@ class AuthRepository {
       await _localDb.saveUserData(jsonEncode(asesor.toJson()));
       await _localDb.saveAttempts(0);
       return asesor;
-    } catch (_) {
-      try {
-        final asesor = _mockLogin(codigoEmpleado, password);
-        await _localDb.saveToken(asesor.token ?? '');
-        await _localDb.saveSession('');
-        await _localDb.saveUserData(jsonEncode(asesor.toJson()));
-        await _localDb.saveAttempts(0);
-        return asesor;
-      } catch (_) {
-        await _registerFailedAttempt();
-        rethrow;
-      }
+    } catch (e) {
+      await _registerFailedAttempt();
+      rethrow;
     }
   }
 
@@ -54,16 +45,6 @@ class AuthRepository {
     return AsesorModel.fromJson(
       jsonDecode(userData) as Map<String, dynamic>,
     );
-  }
-
-  AsesorModel _mockLogin(String codigo, String password) {
-    final idx = mockAsesores.indexWhere((a) => a.codigoEmpleado == codigo);
-    if (idx == -1) throw Exception('Credenciales incorrectas');
-    final expected = mockPasswords[codigo];
-    if (expected == null || expected != password) {
-      throw Exception('Credenciales incorrectas');
-    }
-    return mockAsesores[idx];
   }
 
   Future<void> logout() async {
@@ -145,10 +126,7 @@ class AuthRepository {
   }
 
   Future<int> getPendingSyncCount() async {
-    final db = await _localDb.database;
-    final result = await db.rawQuery(
-      "SELECT COUNT(*) as count FROM solicitudes_local WHERE pendiente_sync = 1",
-    );
-    return (result.first['count'] as int?) ?? 0;
+    final pendientes = await LocalCache.instance.getPendingSync();
+    return pendientes.length;
   }
 }

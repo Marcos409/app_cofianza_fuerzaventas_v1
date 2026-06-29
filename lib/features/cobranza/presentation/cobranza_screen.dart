@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../shared/utils/responsive.dart';
 import '../domain/cliente_mora.dart';
 import 'cobranza_providers.dart';
 import 'cobranza_notifier.dart';
@@ -113,7 +114,12 @@ class _CobranzaScreenState extends ConsumerState<CobranzaScreen> {
         _buildHeaderTotal(state.totalVencido),
         Expanded(
           child: ListView.builder(
-            padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+            padding: EdgeInsets.only(
+              left: context.wp(3.2),
+              top: 4,
+              right: context.wp(3.2),
+              bottom: 12,
+            ),
             itemCount: state.morosos.length,
             itemBuilder: (_, i) => _ClienteMoraCard(
               cliente: state.morosos[i],
@@ -248,16 +254,26 @@ class _ClienteMoraCard extends StatelessWidget {
                 const Icon(Icons.person_outline,
                     size: 14, color: AppColors.textSecondary),
                 const SizedBox(width: 4),
-                Text(cliente.documentoCliente,
+                Flexible(
+                  child: Text(
+                    cliente.documentoCliente,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                        fontSize: 13, color: AppColors.textSecondary)),
+                        fontSize: 13, color: AppColors.textSecondary),
+                  ),
+                ),
                 const Spacer(),
                 const Icon(Icons.phone_outlined,
                     size: 14, color: AppColors.textSecondary),
                 const SizedBox(width: 4),
-                Text(cliente.telefono ?? '--',
+                Flexible(
+                  child: Text(
+                    cliente.telefono ?? '--',
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                        fontSize: 13, color: AppColors.textSecondary)),
+                        fontSize: 13, color: AppColors.textSecondary),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 6),

@@ -31,6 +31,7 @@ class LineaTiempo extends StatelessWidget {
     switch (estadoActual) {
       case EstadoSolicitud.borrador:
       case EstadoSolicitud.enviado:
+      case EstadoSolicitud.enProceso:
         return 0;
       case EstadoSolicitud.recibidoComite:
         return 1;
@@ -52,92 +53,83 @@ class LineaTiempo extends StatelessWidget {
         final etapa = _etapas[i];
         final isCompletado = i < _indiceActual;
         final isActivo = i == _indiceActual;
-        return IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SizedBox(
-                width: 40,
-                child: Column(
-                  children: [
-                    if (i > 0)
-                      Expanded(
-                        child: Container(
-                          width: 2,
-                          color: isCompletado
-                              ? AppColors.success
-                              : AppColors.textSecondary.withValues(alpha: 0.3),
-                        ),
-                      ),
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 40,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (i > 0)
                     Container(
-                      width: 24,
-                      height: 24,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
+                      width: 2,
+                      height: 28,
+                      color: isCompletado
+                          ? AppColors.success
+                          : AppColors.textSecondary.withValues(alpha: 0.3),
+                    ),
+                  Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isCompletado
+                          ? AppColors.success
+                          : isActivo
+                              ? AppColors.primary
+                              : Colors.transparent,
+                      border: Border.all(
                         color: isCompletado
                             ? AppColors.success
                             : isActivo
                                 ? AppColors.primary
-                                : Colors.transparent,
-                        border: Border.all(
-                          color: isCompletado
-                              ? AppColors.success
-                              : isActivo
-                                  ? AppColors.primary
-                                  : AppColors.textSecondary,
-                          width: 2,
-                        ),
-                      ),
-                      child: isCompletado
-                          ? const Icon(Icons.check, size: 14, color: Colors.white)
-                          : isActivo
-                              ? Container(
-                                  margin: const EdgeInsets.all(4),
-                                  decoration: const BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: AppColors.primary,
-                                  ),
-                                )
-                              : null,
-                    ),
-                    if (i < _etapas.length - 1)
-                      Expanded(
-                        child: Container(
-                          width: 2,
-                          color: isCompletado
-                              ? AppColors.success
-                              : AppColors.textSecondary.withValues(alpha: 0.3),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              Padding(
-                padding: EdgeInsets.only(
-                  top: i > 0 ? 28 : 2,
-                  bottom: i < _etapas.length - 1 ? 28 : 2,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      etapa.descripcion,
-                      style: TextStyle(
-                        fontWeight:
-                            isActivo ? FontWeight.bold : FontWeight.normal,
-                        color: isCompletado
-                            ? AppColors.textPrimary
-                            : isActivo
-                                ? AppColors.primary
                                 : AppColors.textSecondary,
+                        width: 2,
                       ),
                     ),
-                  ],
+                    child: isCompletado
+                        ? const Icon(Icons.check, size: 14, color: Colors.white)
+                        : isActivo
+                            ? Container(
+                                margin: const EdgeInsets.all(4),
+                                decoration: const BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: AppColors.primary,
+                                ),
+                              )
+                            : null,
+                  ),
+                  if (i < _etapas.length - 1)
+                    Container(
+                      width: 2,
+                      height: 28,
+                      color: isCompletado
+                          ? AppColors.success
+                          : AppColors.textSecondary.withValues(alpha: 0.3),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Padding(
+              padding: EdgeInsets.only(
+                top: i > 0 ? 28.0 : 2.0,
+              ),
+              child: Text(
+                etapa.descripcion,
+                style: TextStyle(
+                  fontWeight:
+                      isActivo ? FontWeight.bold : FontWeight.normal,
+                  color: isCompletado
+                      ? AppColors.textPrimary
+                      : isActivo
+                          ? AppColors.primary
+                          : AppColors.textSecondary,
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         );
       }),
     );

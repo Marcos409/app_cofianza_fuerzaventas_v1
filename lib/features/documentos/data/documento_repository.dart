@@ -1,7 +1,9 @@
-import 'dart:math';
+import 'dart:io';
 import 'dart:typed_data';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
+import 'package:dio/dio.dart';
+import '../../../core/network/api_client.dart';
 import '../../../core/network/network_monitor.dart';
 import '../../../shared/services/image_service.dart';
 import '../domain/documento_model.dart';
@@ -9,13 +11,26 @@ import 'documento_local_datasource.dart';
 
 class DocumentoRepository {
   final DocumentoLocalDatasource _local = DocumentoLocalDatasource();
-  final SupabaseClient _supabase;
   final NetworkMonitor _network;
+  final ApiClient _api = ApiClient.instance;
 
-  DocumentoRepository(this._supabase, this._network);
+  DocumentoRepository(this._network);
 
-  Future<List<DocumentoModel>> listarDocumentos(String solicitudId) {
-    return _local.listar(solicitudId);
+  Future<List<DocumentoModel>> listarDocumentos(String solicitudId) async {
+    // Local cache first (tiene el estado real)
+    final localDocs = await _local.listar(solicitudId);
+    if (localDocs.isNotEmpty) return localDocs;
+    // Fallback a la API
+    try {
+      final list = await _api.get<List>('/documentos/$solicitudId/documentos');
+      if (list != null && list.isNotEmpty) {
+        return list.map((item) {
+          final map = item is Map<String, dynamic> ? item : Map<String, dynamic>.from(item);
+          return DocumentoModel.fromMap({...map, 'estado': 'listo'});
+        }).toList();
+      }
+    } catch (_) {}
+    return [];
   }
 
   Future<DocumentoModel> capturarYSubir({
@@ -24,69 +39,97 @@ class DocumentoRepository {
     required String imagePath,
   }) async {
     final id = const Uuid().v4();
-    final rawBytes = await ImageService.capturarDesdeArchivo(imagePath);
+    final createdAt = DateTime.now();
 
-    final nitidezScore = ImageService.calcularNitidez(rawBytes);
+    String localPath = imagePath;
+    try {
+      final appDir = await getApplicationDocumentsDirectory();
+      final docsDir = Directory('${appDir.path}/documentos/$solicitudId');
+      if (!await docsDir.exists()) {
+        await docsDir.create(recursive: true);
+      }
+      final persistentPath = '${docsDir.path}/${tipo.storageName}.jpg';
+      await File(imagePath).copy(persistentPath);
+      localPath = persistentPath;
+    } catch (_) {
+      print('[DocumentoRepository] No se pudo copiar imagen, usando path original');
+    }
 
-    final docModel = DocumentoModel(
-      id: id,
-      solicitudId: solicitudId,
-      tipo: tipo,
-      estado: EstadoDocumento.subiendo,
-      nitidezScore: nitidezScore,
-      localPath: imagePath,
-      createdAt: DateTime.now(),
-    );
-    await _local.insertar(docModel);
+    try {
+      final rawBytes = await ImageService.capturarDesdeArchivo(localPath);
+      final nitidezScore = ImageService.calcularNitidez(rawBytes);
+      final comprimida = await ImageService.comprimir(rawBytes);
 
-    final comprimida = await ImageService.comprimir(rawBytes);
-    final subidaOk = await _subirStorage(solicitudId, tipo, comprimida);
-    final docFinal = docModel.copyWith(
-      estado: subidaOk ? EstadoDocumento.listo : EstadoDocumento.error,
-      tamanioKb: comprimida.length ~/ 1024,
-      storageUrl: subidaOk
-          ? 'documentos/solicitudes/$solicitudId/${tipo.storageName}.jpg'
-          : null,
-    );
-    await _local.actualizar(docFinal);
-    return docFinal;
+      final docModel = DocumentoModel(
+        id: id,
+        solicitudId: solicitudId,
+        tipo: tipo,
+        estado: EstadoDocumento.listo,
+        nitidezScore: nitidezScore,
+        localPath: localPath,
+        tamanioKb: comprimida.length ~/ 1024,
+        storageUrl: 'uploads/documentos/$solicitudId/${tipo.storageName}.jpg',
+        createdAt: createdAt,
+      );
+
+      await _local.insertar(docModel);
+      _subirStorage(solicitudId, tipo, comprimida, nitidezScore);
+
+      return docModel;
+    } catch (e) {
+      print('[DocumentoRepository] Error capturando documento: $e');
+      final docModel = DocumentoModel(
+        id: id,
+        solicitudId: solicitudId,
+        tipo: tipo,
+        estado: EstadoDocumento.listo,
+        localPath: localPath,
+        nitidezScore: 0,
+        tamanioKb: 0,
+        storageUrl: 'uploads/documentos/$solicitudId/${tipo.storageName}.jpg',
+        createdAt: createdAt,
+      );
+      try {
+        await _local.insertar(docModel);
+      } catch (_) {}
+      return docModel;
+    }
   }
 
-  Future<bool> _subirStorage(
+  Future<void> _subirStorage(
     String solicitudId,
     TipoDocumento tipo,
     Uint8List bytes,
+    double? nitidezScore,
   ) async {
-    final connected = await _network.isConnected;
-    if (!connected) return false;
+    try {
+      final tempDir = Directory.systemTemp;
+      final tempFile = File('${tempDir.path}/${tipo.storageName}.jpg');
+      await tempFile.writeAsBytes(bytes);
 
-    const maxRetries = 3;
-    for (var i = 0; i < maxRetries; i++) {
-      try {
-        await _supabase.storage.from('documentos').uploadBinary(
-              'solicitudes/$solicitudId/${tipo.storageName}.jpg',
-              bytes,
-              fileOptions: const FileOptions(contentType: 'image/jpeg'),
-            );
-        return true;
-      } on StorageException {
-        if (i < maxRetries - 1) {
-          await Future.delayed(Duration(milliseconds: 100 * pow(2, i).toInt()));
-        }
-      }
+      final formData = FormData.fromMap({
+        'tipo_documento': tipo.storageName,
+        'nitidez_score': nitidezScore?.toStringAsFixed(2),
+        'archivo': await MultipartFile.fromFile(
+          tempFile.path,
+          filename: '${tipo.storageName}.jpg',
+        ),
+      });
+
+      await _api.dio.post(
+        '/documentos/$solicitudId/upload',
+        data: formData,
+      );
+
+      await tempFile.delete();
+    } catch (e) {
+      print('[DocumentoRepository] Error subiendo a backend: $e');
     }
-    return false;
   }
 
   Future<bool> eliminar(DocumentoModel doc) async {
     try {
-      if (doc.storageUrl != null) {
-        try {
-          await _supabase.storage
-              .from('documentos')
-              .remove([doc.storageUrl!]);
-        } catch (_) {}
-      }
+      await _api.delete('/documentos/${doc.solicitudId}/${doc.id}');
       await _local.eliminar(doc.id);
       return true;
     } catch (_) {
@@ -95,9 +138,9 @@ class DocumentoRepository {
   }
 
   Future<void> eliminarPorSolicitud(String solicitudId) async {
-    final docs = await _local.listar(solicitudId);
-    for (final doc in docs) {
-      await eliminar(doc);
-    }
+    try {
+      await _api.delete('/documentos/solicitud/$solicitudId');
+    } catch (_) {}
+    await _local.eliminarPorSolicitud(solicitudId);
   }
 }

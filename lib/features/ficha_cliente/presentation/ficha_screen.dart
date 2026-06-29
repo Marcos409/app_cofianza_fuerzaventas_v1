@@ -7,7 +7,9 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_strings.dart';
 import '../../../shared/utils/formatters.dart';
+import '../../../shared/utils/responsive.dart';
 import '../../../shared/widgets/semaforo_riesgo.dart';
+import '../../auth/presentation/providers/auth_provider.dart';
 import 'ficha_providers.dart';
 import 'ficha_viewmodel.dart';
 import '../domain/ficha_models.dart';
@@ -319,13 +321,21 @@ class _Encabezado extends ConsumerWidget {
         ? cliente.nombre.split(' ').map((w) => w.isNotEmpty ? w[0] : '').take(2).join()
         : '?';
 
-    final alertasAsync = ref.watch(alertasCarteraProvider(cliente.id));
+    // ════════════════════════════════════════════════════════════
+    // 🔧 SUPABASE_COMENTADO: alertasCarteraProvider desactivado
+    // ════════════════════════════════════════════════════════════
+    // final alertasAsync = ref.watch(alertasCarteraProvider(cliente.id));
+    final alertasAsync = AsyncValue<List<Map<String, dynamic>>>.data([]);
+    // ════════════════════════════════════════════════════════════
+    final w = context.screenWidth;
+    final scale = (w / 375).clamp(0.8, 1.3);
 
     return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
+      width: double.infinity,
+      padding: EdgeInsets.all(20 * scale),
+      decoration: const BoxDecoration(
         color: AppColors.primary,
-        borderRadius: const BorderRadius.only(
+        borderRadius: BorderRadius.only(
           bottomLeft: Radius.circular(24),
           bottomRight: Radius.circular(24),
         ),
@@ -335,13 +345,13 @@ class _Encabezado extends ConsumerWidget {
           Stack(
             children: [
               CircleAvatar(
-                radius: 36,
+                radius: w < 360 ? 28 : 36,
                 backgroundColor: Colors.white24,
                 child: Text(
                   iniciales.toUpperCase(),
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: Colors.white,
-                    fontSize: 28,
+                    fontSize: w < 360 ? 22 : 28,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -369,22 +379,27 @@ class _Encabezado extends ConsumerWidget {
                 ),
             ],
           ),
-          const SizedBox(height: 12),
-          Text(
-            cliente.nombre,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
+          SizedBox(height: 12 * scale),
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 8 * scale),
+            child: Text(
+              cliente.nombre,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: context.sp(20).clamp(16.0, 24.0),
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
-            textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8 * scale),
           SemaforoRiesgoGrande(calificacion: cliente.calificacionSbs),
-          const SizedBox(height: 16),
+          SizedBox(height: 16 * scale),
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: 6,
+            runSpacing: 6,
             alignment: WrapAlignment.center,
             children: [
               _infoChip(Icons.badge_outlined, Formatters.censoredDni(cliente.documento)),
@@ -415,8 +430,14 @@ class _Encabezado extends ConsumerWidget {
         children: [
           Icon(icon, size: 14, color: Colors.white70),
           const SizedBox(width: 6),
-          Text(text,
-              style: const TextStyle(color: Colors.white, fontSize: 13)),
+          Flexible(
+            child: Text(
+              text,
+              style: const TextStyle(color: Colors.white, fontSize: 13),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+          ),
         ],
       ),
     );
@@ -665,7 +686,7 @@ class _ComportamientoSection extends StatelessWidget {
             child: Column(
               children: [
                 SizedBox(
-                  height: 180,
+                  height: context.hp(25).clamp(140, 260),
                   child: BarChart(
                     BarChartData(
                       alignment: BarChartAlignment.spaceAround,
@@ -1081,8 +1102,9 @@ class _BotoneraAcciones extends ConsumerWidget {
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () {
+                    final asesorId = ref.read(authProvider).asesor?.id ?? '';
                     context.push('/buro/$clienteId', extra: {
-                      'asesorId': '',
+                      'asesorId': asesorId,
                       'dniCliente': documento,
                       'nombreCliente': nombreCliente,
                       'solicitudId': null,

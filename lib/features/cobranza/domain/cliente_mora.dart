@@ -85,12 +85,12 @@ class ClienteMora {
     documentoCliente: m['documento_cliente']?.toString() ?? m['documentoCliente']?.toString() ?? '',
     telefono: m['telefono']?.toString(),
     direccion: m['direccion']?.toString(),
-    diasMora: (m['dias_mora'] as num?)?.toInt() ?? (m['diasMora'] as num?)?.toInt() ?? 0,
-    montoVencido: (m['monto_vencido'] as num?)?.toDouble() ?? (m['montoVencido'] as num?)?.toDouble() ?? 0,
-    saldoActual: (m['saldo_actual'] as num?)?.toDouble() ?? (m['saldoActual'] as num?)?.toDouble() ?? 0,
+    diasMora: int.tryParse(m['dias_mora']?.toString() ?? '') ?? (m['diasMora'] as num?)?.toInt() ?? 0,
+    montoVencido: double.tryParse(m['monto_vencido']?.toString() ?? '') ?? (m['montoVencido'] as num?)?.toDouble() ?? 0,
+    saldoActual: double.tryParse(m['saldo_actual']?.toString() ?? '') ?? (m['saldoActual'] as num?)?.toDouble() ?? 0,
     ultimoContacto: m['ultimo_contacto']?.toString() ?? m['ultimoContacto']?.toString(),
-    cuotasPagadas: (m['cuotas_pagadas'] as num?)?.toInt() ?? (m['cuotasPagadas'] as num?)?.toInt(),
-    totalCuotas: (m['total_cuotas'] as num?)?.toInt() ?? (m['totalCuotas'] as num?)?.toInt(),
+    cuotasPagadas: int.tryParse(m['cuotas_pagadas']?.toString() ?? '') ?? (m['cuotasPagadas'] as num?)?.toInt(),
+    totalCuotas: int.tryParse(m['total_cuotas']?.toString() ?? '') ?? (m['totalCuotas'] as num?)?.toInt(),
   );
 
   NivelUrgencia get urgencia {

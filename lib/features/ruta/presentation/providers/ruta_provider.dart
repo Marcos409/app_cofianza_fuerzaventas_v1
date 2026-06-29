@@ -3,8 +3,8 @@ import '../../data/ruta_repository.dart';
 import '../../data/directions_service.dart';
 import '../ruta_viewmodel.dart';
 import '../../../cartera/data/cartera_local_datasource.dart';
-import '../../../../core/supabase/supabase_client.dart';
-import '../../../../core/storage/local_db.dart';
+import '../../../../core/network/api_client.dart';
+import '../../../../core/cache/local_cache.dart';
 
 final directionsServiceProvider = Provider<DirectionsService>((ref) {
   return DirectionsService();
@@ -12,8 +12,8 @@ final directionsServiceProvider = Provider<DirectionsService>((ref) {
 
 final rutaRepositoryProvider = Provider<RutaRepository>((ref) {
   return RutaRepository(
-    CarteraLocalDatasource(LocalDb.instance),
-    SupabaseService.instance,
+    CarteraLocalDatasource(LocalCache.instance),
+    ApiClient.instance,
   );
 });
 
@@ -22,6 +22,5 @@ final rutaNotifierProvider =
   return RutaNotifier(
     ref.watch(rutaRepositoryProvider),
     ref.watch(directionsServiceProvider),
-    SupabaseService.instance,
   );
 });

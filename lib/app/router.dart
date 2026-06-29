@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../features/auth/presentation/providers/auth_provider.dart';
+import '../features/auth/domain/asesor_model.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/splash/splash_screen.dart';
@@ -16,11 +17,14 @@ import '../features/solicitud/presentation/mis_solicitudes_screen.dart';
 import '../features/solicitud/presentation/pre_evaluacion_screen.dart';
 import '../features/solicitud/presentation/borradores_screen.dart';
 import '../features/documentos/presentation/documentos_screen.dart';
+import '../features/documentos/presentation/documentos_solicitudes_screen.dart';
 import '../features/buro/presentation/buro_screen.dart';
 import '../features/transmision/presentation/transmision_screen.dart';
 import '../features/estado_solicitudes/presentation/tablero_solicitudes_screen.dart';
 import '../features/cobranza/presentation/cobranza_screen.dart';
 import '../features/reportes/presentation/reportes_shell_screen.dart';
+import '../features/admin/presentation/usuarios_list_screen.dart';
+import '../features/admin/presentation/usuario_form_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final goRouter = GoRouter(
@@ -34,6 +38,9 @@ final routerProvider = Provider<GoRouter>((ref) {
               authState.status == AuthStatus.loading;
       final isLoginRoute = state.matchedLocation == '/login';
       final isSplashRoute = state.matchedLocation == '/splash';
+      final location = state.matchedLocation;
+
+      print('[ROUTER] redirect check: location=$location status=${authState.status}');
 
       if (isUninitialized) {
         return isSplashRoute ? null : '/splash';
@@ -41,6 +48,13 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       if (!isAuthenticated && !isLoginRoute) return '/login';
       if (isAuthenticated && isLoginRoute) return '/home';
+
+      final isAdminRoute = state.matchedLocation.startsWith('/usuarios');
+      if (isAuthenticated && isAdminRoute) {
+        final role = authState.asesor?.rol;
+        if (role != Role.administrador) return '/home';
+      }
+
       return null;
     },
     routes: [
@@ -98,15 +112,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/documentos',
         name: 'documentos',
-        builder: (_, _) => const Scaffold(
-          body: Center(
-            child: Text(
-              'Seleccione una solicitud para ver sus documentos',
-              style: TextStyle(fontSize: 16, color: Colors.grey),
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ),
+        builder: (_, _) => const DocumentosSolicitudesScreen(),
       ),
       GoRoute(
         path: '/buro',
@@ -125,7 +131,9 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/estado-solicitudes',
         name: 'estadoSolicitudesPlaceholder',
         builder: (context, _) {
-          final asesorId = ref.read(authProvider).asesor?.id ?? '';
+          final asesor = ref.read(authProvider).asesor;
+          final asesorId = asesor?.id ?? '';
+          print('[Router] estado-solicitudes asesorId=$asesorId codigo=${asesor?.codigoEmpleado}');
           return TableroSolicitudesScreen(asesorId: asesorId);
         },
       ),
@@ -244,6 +252,23 @@ final routerProvider = Provider<GoRouter>((ref) {
           final asesorId = ref.read(authProvider).asesor?.id ?? '';
           return ReportesShellScreen(agenciaId: asesorId);
         },
+      ),
+      GoRoute(
+        path: '/usuarios',
+        name: 'usuarios',
+        builder: (_, _) => const UsuariosListScreen(),
+      ),
+      GoRoute(
+        path: '/usuarios/nuevo',
+        name: 'usuarioNuevo',
+        builder: (_, _) => const UsuarioFormScreen(),
+      ),
+      GoRoute(
+        path: '/usuarios/editar/:id',
+        name: 'usuarioEditar',
+        builder: (_, state) => UsuarioFormScreen(
+          usuarioId: state.pathParameters['id'],
+        ),
       ),
     ],
     errorBuilder: (_, _) => const Scaffold(

@@ -1,13 +1,15 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/network_monitor.dart';
-import '../../../core/supabase/supabase_client.dart';
+import '../../../core/network/api_client.dart';
+import '../../../core/cache/local_cache.dart';
 import '../data/buro_repository.dart';
 import 'buro_viewmodel.dart';
 
 final buroRepositoryProvider = Provider<BuroRepository>((ref) {
   return BuroRepository(
-    SupabaseService.instance.client,
     NetworkMonitor(),
+    ApiClient.instance,
+    LocalCache.instance,
   );
 });
 

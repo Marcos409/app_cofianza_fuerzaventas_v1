@@ -4,17 +4,14 @@ import '../data/solicitud_repository.dart';
 import '../domain/solicitud_model.dart';
 import 'solicitud_viewmodel.dart';
 import '../../../../core/network/network_monitor.dart';
-import '../../../../core/storage/local_db.dart';
-import '../../../../core/supabase/supabase_client.dart';
 
 final solicitudLocalDatasourceProvider = Provider<SolicitudLocalDatasource>((ref) {
-  return SolicitudLocalDatasource(LocalDb.instance);
+  return SolicitudLocalDatasource();
 });
 
 final solicitudRepositoryProvider = Provider<SolicitudRepository>((ref) {
   return SolicitudRepository(
     ref.watch(solicitudLocalDatasourceProvider),
-    SupabaseService.instance,
     NetworkMonitor(),
   );
 });

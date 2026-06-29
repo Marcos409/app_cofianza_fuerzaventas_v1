@@ -58,8 +58,12 @@ class DocumentosNotifier extends StateNotifier<DocumentosState> {
       : super(DocumentosState(solicitudId: solicitudId));
 
   Future<void> loadDocumentos() async {
-    final docs = await _repository.listarDocumentos(state.solicitudId);
-    state = state.copyWith(documentos: docs);
+    try {
+      final docs = await _repository.listarDocumentos(state.solicitudId);
+      state = state.copyWith(documentos: docs);
+    } catch (e) {
+      print('[DocumentosNotifier] Error cargando documentos: $e');
+    }
   }
 
   Future<void> capturarDocumento({

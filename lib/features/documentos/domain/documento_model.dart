@@ -158,11 +158,17 @@ class DocumentoModel {
           orElse: () => EstadoDocumento.pendiente,
         ),
         storageUrl: m['storage_url'] as String?,
-        tamanioKb: m['tamanio_kb'] as int?,
-        nitidezScore: (m['nitidez_score'] as num?)?.toDouble(),
+        tamanioKb: m['tamanio_kb'] is num
+            ? (m['tamanio_kb'] as num).toInt()
+            : int.tryParse(m['tamanio_kb']?.toString() ?? ''),
+        nitidezScore: m['nitidez_score'] is num
+            ? (m['nitidez_score'] as num).toDouble()
+            : double.tryParse(m['nitidez_score']?.toString() ?? ''),
         localPath: m['local_path'] as String?,
-        createdAt: m['created_at'] != null
-            ? DateTime.tryParse(m['created_at'] as String)
-            : null,
+        createdAt: m['created_at'] is DateTime
+            ? m['created_at'] as DateTime
+            : m['created_at'] != null
+                ? DateTime.tryParse(m['created_at'] as String)
+                : null,
       );
 }

@@ -1,17 +1,17 @@
 import 'dart:async';
+import 'package:dio/dio.dart';
 import 'solicitud_local_datasource.dart';
 import '../domain/solicitud_model.dart';
+import '../../../core/network/api_client.dart';
 import '../../../core/network/network_monitor.dart';
-import '../../../core/supabase/supabase_client.dart';
 
 class SolicitudRepository {
   final SolicitudLocalDatasource _localDatasource;
-  final SupabaseService _supabase;
   final NetworkMonitor _networkMonitor;
+  final ApiClient _api = ApiClient.instance;
 
   SolicitudRepository(
     this._localDatasource,
-    this._supabase,
     this._networkMonitor,
   );
 
@@ -39,50 +39,80 @@ class SolicitudRepository {
       fechaActualizacion: DateTime.now(),
     );
 
-    await _localDatasource.saveEnviada(enviada);
-
-    final isOnline = await _networkMonitor.isConnected;
-    if (isOnline) {
-      try {
-        await _supabase.client.from('solicitudes_credito').insert(enviada.toJson());
-      } catch (_) {
-        // queda pendiente de sync
+    try {
+      final garantiaMap = {
+        TipoGarantia.sinGarantia: 'sin_garantia',
+        TipoGarantia.aval: 'aval',
+        TipoGarantia.hipotecaria: 'hipotecaria',
+        TipoGarantia.prendaria: 'prendaria',
+      };
+      final payload = {
+        'id': solicitud.id,
+        'numero_documento': solicitud.solicitante.documento,
+        'nombres': solicitud.solicitante.nombres,
+        'apellidos': solicitud.solicitante.apellidos,
+        'telefono': solicitud.solicitante.telefono,
+        'email': solicitud.solicitante.email,
+        'fecha_nacimiento': solicitud.solicitante.fechaNacimiento?.toIso8601String(),
+        'estado_civil': solicitud.solicitante.estadoCivil,
+        'grado_instruccion': solicitud.solicitante.gradoInstruccion,
+        'tipo_negocio': solicitud.negocio.tipoNegocio,
+        'nombre_negocio': solicitud.negocio.nombreNegocio,
+        'direccion_negocio': solicitud.negocio.direccionNegocio,
+        'antiguedad_anios': solicitud.negocio.antiguedadAnios,
+        'antiguedad_meses': solicitud.negocio.antiguedadMeses,
+        'ingresos_estimados': solicitud.negocio.ingresosMensuales,
+        'gastos_mensuales': solicitud.negocio.gastosMensuales,
+        'patrimonio': solicitud.negocio.patrimonio,
+        'destino_credito': solicitud.negocio.destinoCredito,
+        'actividad_economica': solicitud.negocio.actividadEconomica,
+        'monto_solicitado': solicitud.credito.montoSolicitado,
+        'plazo_meses': solicitud.credito.plazoMeses,
+        'moneda': solicitud.credito.moneda,
+        'tipo_cuota': solicitud.credito.tipoCuota.name,
+        'garantia': garantiaMap[solicitud.credito.garantia] ?? 'sin_garantia',
+        'cuota_estimada': solicitud.cuotaEstimada,
+        'tea_referencial': solicitud.teaReferencial,
+        'firma_cliente_base64': solicitud.firmaBase64,
+      };
+      final response = await _api.dio.post('/solicitudes', data: payload);
+      final backendExpediente = response.data?['numero_expediente']?.toString();
+      if (backendExpediente != null && backendExpediente.isNotEmpty) {
+        return backendExpediente;
       }
+    } on DioException catch (e) {
+      print('[SolicitudRepository] Error creando solicitud en backend: $e');
     }
 
     return enviada.numeroExpediente;
   }
 
-  Future<List<SolicitudModel>> getSolicitudesDelMes(String asesorId) async {
-    final isOnline = await _networkMonitor.isConnected;
-
-    if (isOnline) {
-      try {
-        final inicioMes = DateTime(DateTime.now().year, DateTime.now().month, 1)
-            .toIso8601String();
-        final response = await _supabase.client
-            .from('solicitudes_credito')
-            .select()
-            .eq('asesor_id', asesorId)
-            .gte('created_at', inicioMes)
-            .order('created_at', ascending: false);
-
-        final solicitudes = (response as List)
-            .map((j) =>
-                SolicitudModel.fromJson(Map<String, dynamic>.from(j)))
-            .toList();
-
-        for (final s in solicitudes) {
-          await _localDatasource.saveEnviada(s);
-        }
-
-        return solicitudes;
-      } catch (_) {
-        return _localDatasource.getSolicitudesDelMes(asesorId);
+  Future<void> sincronizarAsignadas(String asesorId) async {
+    try {
+      final list = await _api.get<List>('/solicitudes/asignadas', params: {'asesor_id': asesorId});
+      if (list == null) return;
+      for (final item in list) {
+        final map = item is Map<String, dynamic> ? item : Map<String, dynamic>.from(item);
+        final sol = SolicitudModel.fromJson(map);
+        await _localDatasource.saveBorrador(sol);
       }
+    } catch (e) {
+      print('[SolicitudRepository] Error sincronizando asignadas: $e');
     }
+  }
 
-    return _localDatasource.getSolicitudesDelMes(asesorId);
+  Future<List<SolicitudModel>> getSolicitudesDelMes(String asesorId) async {
+    try {
+      final list = await _api.get<List>('/solicitudes', params: {'asesor_id': asesorId});
+      if (list == null) return [];
+      return list.map((item) {
+        final map = item is Map<String, dynamic> ? item : Map<String, dynamic>.from(item);
+        return SolicitudModel.fromJson(map);
+      }).toList();
+    } catch (e) {
+      print('[SolicitudRepository] Error obteniendo solicitudes: $e');
+      return [];
+    }
   }
 
   String _generarExpedienteLocal() {

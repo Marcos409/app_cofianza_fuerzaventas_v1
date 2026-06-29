@@ -4,8 +4,6 @@ import 'package:go_router/go_router.dart';
 import '../auth/presentation/providers/auth_provider.dart';
 import '../auth/domain/asesor_model.dart';
 import '../../core/constants/app_colors.dart';
-import '../../core/constants/app_strings.dart';
-import '../../core/storage/local_db.dart';
 
 class DrawerMenu extends ConsumerWidget {
   final AsesorModel? asesor;
@@ -59,7 +57,6 @@ class DrawerMenu extends ConsumerWidget {
     const operadorRoutes = [
       '/cartera',
       '/ruta',
-      '/ficha-cliente',
       '/solicitudes',
       '/pre-evaluacion',
       '/borradores',
@@ -71,6 +68,9 @@ class DrawerMenu extends ConsumerWidget {
     if (role == Role.supervisor || role == Role.administrador) {
       return true;
     }
+    if (role == Role.administrador) {
+      return route == '/usuarios';
+    }
     return operadorRoutes.contains(route);
   }
 
@@ -79,12 +79,6 @@ class DrawerMenu extends ConsumerWidget {
     final items = <_DrawerItem>[
       _DrawerItem('Cartera', Icons.people_outline, '/cartera', true),
       _DrawerItem('Ruta', Icons.route_outlined, '/ruta', true),
-      _DrawerItem(
-        'Ficha Cliente',
-        Icons.person_outline,
-        '/cartera',
-        true,
-      ),
       _DrawerItem(
         'Pre-Evaluación',
         Icons.search_outlined,
@@ -109,7 +103,6 @@ class DrawerMenu extends ConsumerWidget {
         '/documentos',
         true,
       ),
-      _DrawerItem('Buró', Icons.credit_score_outlined, '/buro', true),
       _DrawerItem(
         'Estado Solicitudes',
         Icons.pending_actions_outlined,
@@ -127,6 +120,12 @@ class DrawerMenu extends ConsumerWidget {
         Icons.bar_chart_outlined,
         '/reportes',
         role == Role.supervisor || role == Role.administrador,
+      ),
+      _DrawerItem(
+        'Administración',
+        Icons.admin_panel_settings_outlined,
+        '/usuarios',
+        role == Role.administrador,
       ),
     ];
 
@@ -203,24 +202,13 @@ class DrawerMenu extends ConsumerWidget {
     );
   }
 
-  void _confirmLogout(BuildContext context, WidgetRef ref) async {
-    final localDb = LocalDb.instance;
-    final db = await localDb.database;
-    final result = await db.rawQuery(
-      "SELECT COUNT(*) as count FROM solicitudes_local WHERE pendiente_sync = 1",
-    );
-    final pendingCount = (result.first['count'] as int?) ?? 0;
-
-    if (!context.mounted) return;
-
+  void _confirmLogout(BuildContext context, WidgetRef ref) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         title: const Text('Cerrar sesión'),
-        content: pendingCount > 0
-            ? Text(AppStrings.pendingSyncWarning.replaceAll('@count', pendingCount.toString()))
-            : const Text('¿Estás seguro de que deseas cerrar sesión?'),
+        content: const Text('¿Estás seguro de que deseas cerrar sesión?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),

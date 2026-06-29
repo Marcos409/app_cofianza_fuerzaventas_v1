@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../auth/presentation/providers/auth_provider.dart';
 import '../auth/domain/asesor_model.dart';
 import '../../core/constants/app_colors.dart';
+import '../../shared/utils/responsive.dart';
 import 'drawer_menu.dart';
 
 class HomeScreen extends ConsumerWidget {
@@ -90,16 +91,10 @@ class HomeScreen extends ConsumerWidget {
       _MenuOption('Documentos', Icons.description_outlined, const Color(0xFFE65100), () {
         context.push('/documentos');
       }),
-      _MenuOption('Ficha Cliente', Icons.person_outline, const Color(0xFF2E7D32), () {
-        context.push('/cartera');
-      }),
     ];
 
     if (role == Role.supervisor || role == Role.administrador) {
       options.addAll([
-        _MenuOption('Buró', Icons.credit_score_outlined, const Color(0xFFC62828), () {
-          context.push('/buro');
-        }),
         _MenuOption('Reportes', Icons.bar_chart_outlined, const Color(0xFF1565C0), () {
           context.push('/reportes');
         }),
@@ -107,6 +102,14 @@ class HomeScreen extends ConsumerWidget {
           context.push('/cobranza');
         }),
       ]);
+    }
+
+    if (role == Role.administrador) {
+      options.add(
+        _MenuOption('Usuarios', Icons.admin_panel_settings_outlined, const Color(0xFFC62828), () {
+          context.push('/usuarios');
+        }),
+      );
     }
 
     return options.map((opt) {
@@ -121,7 +124,7 @@ class HomeScreen extends ConsumerWidget {
           onTap: opt.onTap,
           borderRadius: BorderRadius.circular(12),
           child: Padding(
-            padding: const EdgeInsets.all(16),
+      padding: context.respPad(all: 16),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [

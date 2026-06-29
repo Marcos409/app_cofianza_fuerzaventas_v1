@@ -1,13 +1,13 @@
 import '../domain/ruta_models.dart';
 import '../../cartera/domain/cartera_model.dart';
 import '../../cartera/data/cartera_local_datasource.dart';
-import '../../../core/supabase/supabase_client.dart';
+import '../../../core/network/api_client.dart';
 
 class RutaRepository {
   final CarteraLocalDatasource _carteraLocal;
-  final SupabaseService _supabase;
+  final ApiClient _api;
 
-  RutaRepository(this._carteraLocal, this._supabase);
+  RutaRepository(this._carteraLocal, this._api);
 
   Future<List<CarteraModel>> getClientesCartera() async {
     return _carteraLocal.getCartera();
@@ -15,13 +15,12 @@ class RutaRepository {
 
   Future<List<ZonaTrabajo>> getZonasTrabajo(String asesorId) async {
     try {
-      final response = await _supabase.client
-          .from('zonas_trabajo')
-          .select()
-          .contains('asesores_ids', [asesorId]);
-
-      return (response as List<dynamic>)
-          .map((j) => ZonaTrabajo.fromJson(j as Map<String, dynamic>))
+      final data = await _api.get<List>(
+        '/zonas-trabajo',
+        params: {'asesor_id': asesorId},
+      );
+      return data
+          .map((j) => ZonaTrabajo.fromJson(Map<String, dynamic>.from(j)))
           .toList();
     } catch (_) {
       return [];
@@ -34,9 +33,10 @@ class RutaRepository {
     required double lng,
   }) async {
     try {
-      await _supabase.client
-          .from('clientes')
-          .update({'lat': lat, 'lng': lng}).eq('id', clienteId);
+      await _api.post('/clientes/$clienteId/ubicacion', data: {
+        'lat': lat,
+        'lng': lng,
+      });
     } catch (_) {}
   }
 }

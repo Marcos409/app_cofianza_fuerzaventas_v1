@@ -5,8 +5,10 @@ import '../../data/cartera_remote_datasource.dart';
 import '../../data/cartera_local_datasource.dart';
 import '../../domain/cartera_model.dart';
 import '../../../../core/network/network_monitor.dart';
-import '../../../../core/supabase/supabase_client.dart';
+import '../../../../core/network/api_client.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../../core/storage/local_db.dart';
+import '../../../../core/cache/local_cache.dart';
 
 enum CarteraStatus { initial, loading, data, error }
 
@@ -62,9 +64,10 @@ class CarteraState {
 
 class CarteraNotifier extends StateNotifier<CarteraState> {
   final CarteraRepository _repository;
+  final Ref _ref;
   Timer? _debounceTimer;
 
-  CarteraNotifier(this._repository) : super(const CarteraState());
+  CarteraNotifier(this._repository, this._ref) : super(const CarteraState());
 
   @override
   void dispose() {
@@ -75,9 +78,10 @@ class CarteraNotifier extends StateNotifier<CarteraState> {
 
   Future<void> loadClientes() async {
     state = state.copyWith(status: CarteraStatus.loading, errorMessage: null);
+    final asesorId = _ref.read(authProvider).asesor?.id;
 
     try {
-      final clientes = await _repository.getCartera();
+      final clientes = await _repository.getCartera(asesorId: asesorId);
       state = state.copyWith(
         status: CarteraStatus.data,
         clientes: clientes,
@@ -113,6 +117,7 @@ class CarteraNotifier extends StateNotifier<CarteraState> {
       return;
     }
 
+    final asesorId = _ref.read(authProvider).asesor?.id;
     _debounceTimer = Timer(const Duration(milliseconds: 300), () {
       final q = query.trim().toLowerCase();
       final filtrados = state.clientes.where((c) {
@@ -226,11 +231,11 @@ class CarteraNotifier extends StateNotifier<CarteraState> {
 
 final carteraRemoteDatasourceProvider =
     Provider<CarteraRemoteDatasource>((ref) {
-  return CarteraRemoteDatasource(SupabaseService.instance);
+  return CarteraRemoteDatasource(ApiClient.instance);
 });
 
 final carteraLocalDatasourceProvider = Provider<CarteraLocalDatasource>((ref) {
-  return CarteraLocalDatasource(LocalDb.instance);
+  return CarteraLocalDatasource(LocalCache.instance);
 });
 
 final carteraRepositoryProvider = Provider<CarteraRepository>((ref) {
@@ -238,11 +243,10 @@ final carteraRepositoryProvider = Provider<CarteraRepository>((ref) {
     ref.watch(carteraRemoteDatasourceProvider),
     ref.watch(carteraLocalDatasourceProvider),
     NetworkMonitor(),
-    SupabaseService.instance,
   );
 });
 
 final carteraProvider =
     StateNotifierProvider<CarteraNotifier, CarteraState>((ref) {
-  return CarteraNotifier(ref.watch(carteraRepositoryProvider));
+  return CarteraNotifier(ref.watch(carteraRepositoryProvider), ref);
 });

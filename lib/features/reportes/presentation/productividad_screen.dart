@@ -9,6 +9,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../shared/utils/formatters.dart';
+import '../../../shared/utils/responsive.dart';
 import '../domain/productividad_asesor.dart';
 import 'reportes_providers.dart';
 import 'reportes_notifier.dart';
@@ -191,7 +192,7 @@ class _ProductividadScreenState extends ConsumerState<ProductividadScreen> {
                 style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             SizedBox(
-              height: 220,
+              height: context.hp(30).clamp(160, 320),
               child: BarChart(
                 BarChartData(
                   alignment: BarChartAlignment.spaceAround,

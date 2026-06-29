@@ -4,7 +4,7 @@ import '../../data/auth_repository.dart';
 import '../../data/auth_remote_datasource.dart';
 import '../../domain/asesor_model.dart';
 import '../../../../core/storage/local_db.dart';
-import '../../../../core/supabase/supabase_client.dart';
+import '../../../../core/network/api_client.dart';
 import '../../../../core/network/network_monitor.dart';
 
 enum AuthStatus { uninitialized, authenticated, unauthenticated, loading }
@@ -117,6 +117,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         status: AuthStatus.authenticated,
         asesor: asesor,
       );
+      ApiClient.instance.setAsesorId(asesor.id);
       await _startTimers();
     } catch (_) {
       state = state.copyWith(status: AuthStatus.unauthenticated);
@@ -128,6 +129,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
     try {
       final asesor = await _authRepository.login(codigoEmpleado, password);
+
+      ApiClient.instance.setAsesorId(asesor.id);
       state = state.copyWith(
         status: AuthStatus.authenticated,
         asesor: asesor,
@@ -161,6 +164,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     _refreshTimer?.cancel();
     _inactivityTimer?.cancel();
     await _authRepository.logout();
+    ApiClient.instance.clearSession();
     state = const AuthState(status: AuthStatus.unauthenticated);
   }
 
@@ -170,7 +174,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
 }
 
 final authRemoteDatasourceProvider = Provider<AuthRemoteDatasource>((ref) {
-  return AuthRemoteDatasource(SupabaseService.instance);
+  return AuthRemoteDatasource(ApiClient.instance);
 });
 
 final networkMonitorProvider = Provider<NetworkMonitor>((ref) {

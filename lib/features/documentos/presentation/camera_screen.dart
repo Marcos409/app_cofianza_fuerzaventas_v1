@@ -49,8 +49,18 @@ class _CameraScreenState extends State<CameraScreen> {
 
   Future<void> _capture() async {
     if (_controller == null || !_controller!.value.isInitialized) return;
-    final image = await _controller!.takePicture();
-    await _validateAndProcess(image.path);
+    try {
+      final image = await _controller!.takePicture();
+      await _validateAndProcess(image.path);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al capturar: $e'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
   }
 
   Future<void> _pickFromGallery() async {
@@ -64,9 +74,10 @@ class _CameraScreenState extends State<CameraScreen> {
     setState(() => _capturedImage = XFile(path));
 
     final bytes = await File(path).readAsBytes();
+    final score = ImageService.calcularNitidez(bytes);
     if (!ImageService.esNitida(bytes)) {
       if (!mounted) return;
-      _showRetakeDialog();
+      _showRetakeDialog(score);
       return;
     }
 
@@ -80,13 +91,22 @@ class _CameraScreenState extends State<CameraScreen> {
     }
   }
 
-  void _showRetakeDialog() {
+  void _showRetakeDialog(double score) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Foto no nítida'),
-        content: const Text(
-          'La foto no es suficientemente nítida. Por favor, vuelve a capturarla.',
+        title: const Text('Foto con poca nitidez'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Puntaje de nitidez: ${score.toStringAsFixed(1)} (mínimo requerido: ${ImageService.nitidezUmbral.toStringAsFixed(0)})'),
+            const SizedBox(height: 8),
+            const Text(
+              'La foto no alcanza el nivel mínimo de nitidez. '
+              'Asegúrate de que la imagen esté bien enfocada y con buena iluminación.',
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -95,6 +115,22 @@ class _CameraScreenState extends State<CameraScreen> {
               setState(() => _capturedImage = null);
             },
             child: const Text('REINTENTAR'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              final msg = await widget.onCapture(_capturedImage!.path);
+              if (mounted && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('$msg (nitidez baja: ${score.toStringAsFixed(1)})'),
+                    backgroundColor: AppColors.warning,
+                  ),
+                );
+                Navigator.of(context).pop(true);
+              }
+            },
+            child: const Text('CONTINUAR IGUAL'),
           ),
         ],
       ),

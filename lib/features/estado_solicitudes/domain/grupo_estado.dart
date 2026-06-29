@@ -26,6 +26,7 @@ enum GrupoEstado {
     switch (estado) {
       case EstadoSolicitud.borrador:
       case EstadoSolicitud.enviado:
+      case EstadoSolicitud.enProceso:
         return GrupoEstado.enviadas;
       case EstadoSolicitud.recibidoComite:
       case EstadoSolicitud.enEvaluacion:

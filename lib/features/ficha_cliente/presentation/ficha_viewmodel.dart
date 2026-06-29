@@ -108,8 +108,8 @@ class FichaNotifier extends StateNotifier<FichaState> {
   }
 
   Future<void> actualizarUbicacion(
-      String clienteId, double lat, double lng) async {
-    await _repository.actualizarUbicacion(clienteId, lat, lng);
+      String clienteId, double lat, double lng, {String direccion = ''}) async {
+    await _repository.actualizarUbicacion(clienteId, lat, lng, direccion);
   }
 
   Future<void> registrarVisita({

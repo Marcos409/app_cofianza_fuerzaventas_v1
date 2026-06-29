@@ -6,9 +6,13 @@ import '../data/ruta_repository.dart';
 import '../data/directions_service.dart';
 import '../domain/ruta_models.dart';
 import '../../cartera/domain/cartera_model.dart';
-import '../../../core/supabase/supabase_client.dart';
+// ════════════════════════════════════════════════════════════
+// 🔧 SUPABASE_COMENTADO: Desarrollando solo con PostgreSQL local - Junio 2026
+// ════════════════════════════════════════════════════════════
+// import '../../../core/supabase/supabase_client.dart';
+// ════════════════════════════════════════════════════════════
 
-enum RutaStatus { initial, loading, data, error, locationDenied }
+enum RutaStatus { initial, loading, data, error }
 
 class RutaState {
   final RutaStatus status;
@@ -21,6 +25,7 @@ class RutaState {
   final List<LatLng>? rutaPolylinePoints;
   final Set<Polygon> polygons;
   final String? zonaActual;
+  final String? gpsError;
 
   const RutaState({
     this.status = RutaStatus.initial,
@@ -33,6 +38,7 @@ class RutaState {
     this.rutaPolylinePoints,
     this.polygons = const {},
     this.zonaActual,
+    this.gpsError,
   });
 
   RutaState copyWith({
@@ -46,6 +52,8 @@ class RutaState {
     List<LatLng>? rutaPolylinePoints,
     Set<Polygon>? polygons,
     String? zonaActual,
+    String? gpsError,
+    bool clearGpsError = false,
     bool clearPolyline = false,
   }) {
     return RutaState(
@@ -59,6 +67,7 @@ class RutaState {
       rutaPolylinePoints: clearPolyline ? null : rutaPolylinePoints ?? this.rutaPolylinePoints,
       polygons: polygons ?? this.polygons,
       zonaActual: zonaActual ?? this.zonaActual,
+      gpsError: clearGpsError ? null : gpsError ?? this.gpsError,
     );
   }
 }
@@ -66,9 +75,18 @@ class RutaState {
 class RutaNotifier extends StateNotifier<RutaState> {
   final RutaRepository _repository;
   final DirectionsService _directionsService;
-  final SupabaseService _supabase;
+  // ════════════════════════════════════════════════════════════
+  // 🔧 SUPABASE_COMENTADO: _supabase field eliminado para desarrollo local
+  // ════════════════════════════════════════════════════════════
+  // final SupabaseService _supabase;
+  // ════════════════════════════════════════════════════════════
 
-  RutaNotifier(this._repository, this._directionsService, this._supabase)
+  // ════════════════════════════════════════════════════════════
+  // 🔧 SUPABASE_COMENTADO: Constructor sin Supabase
+  // ════════════════════════════════════════════════════════════
+  // RutaNotifier(this._repository, this._directionsService, this._supabase)
+  RutaNotifier(this._repository, this._directionsService)
+  // ════════════════════════════════════════════════════════════
       : super(const RutaState());
 
   Future<void> loadData() async {
@@ -78,8 +96,13 @@ class RutaNotifier extends StateNotifier<RutaState> {
       final clientes = await _repository.getClientesCartera();
       final noVisitados =
           clientes.where((c) => c.estadoVisita != EstadoVisita.visitado).toList();
-      final asesorId = _supabase.auth.currentUser?.id ?? '';
-      final zonas = await _repository.getZonasTrabajo(asesorId);
+      // ════════════════════════════════════════════════════════════
+      // 🔧 SUPABASE_COMENTADO: asesorId de Supabase desactivado - usando string vacío
+      // ════════════════════════════════════════════════════════════
+      // final asesorId = _supabase.auth.currentUser?.id ?? '';
+      // final zonas = await _repository.getZonasTrabajo(asesorId);
+      final zonas = await _repository.getZonasTrabajo('');
+      // ════════════════════════════════════════════════════════════
 
       final polygons = <Polygon>{};
       for (final zona in zonas) {
@@ -121,33 +144,65 @@ class RutaNotifier extends StateNotifier<RutaState> {
     }
   }
 
-  Future<void> requestLocationPermission() async {
-    final permission = await Geolocator.checkPermission();
+  Future<bool> requestLocationPermission() async {
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      state = state.copyWith(
+        gpsError: 'service_disabled',
+      );
+      return false;
+    }
+
+    LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
-      final result = await Geolocator.requestPermission();
-      if (result == LocationPermission.denied ||
-          result == LocationPermission.deniedForever) {
-        state = state.copyWith(status: RutaStatus.locationDenied);
-        return;
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        state = state.copyWith(
+          gpsError: 'permission_denied',
+        );
+        return false;
       }
+      if (permission == LocationPermission.deniedForever) {
+        state = state.copyWith(
+          gpsError: 'permission_denied_forever',
+        );
+        return false;
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      state = state.copyWith(
+        gpsError: 'permission_denied_forever',
+      );
+      return false;
     }
 
     try {
       final position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 15),
       );
-      state = state.copyWith(currentPosition: position);
+      state = state.copyWith(
+        currentPosition: position,
+        gpsError: null,
+      );
       _checkZonaActual();
 
       if (state.rutaOptimizada.isNotEmpty) {
         _optimizeRoute();
       }
+      return true;
     } catch (_) {
       state = state.copyWith(
-        status: RutaStatus.locationDenied,
+        gpsError: 'gps_failed',
         currentPosition: null,
       );
+      return false;
     }
+  }
+
+  void clearGpsError() {
+    state = state.copyWith(clearGpsError: true);
   }
 
   void _checkZonaActual() {

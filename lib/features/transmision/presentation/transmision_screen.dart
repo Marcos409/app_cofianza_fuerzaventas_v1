@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../shared/utils/responsive.dart';
 import '../../../features/documentos/data/documento_local_datasource.dart';
 import '../../../features/solicitud/data/solicitud_local_datasource.dart';
-import '../../../core/storage/local_db.dart';
+
 import '../domain/transmision_model.dart';
 import 'transmision_providers.dart';
 import 'transmision_viewmodel.dart';
@@ -19,6 +20,7 @@ class TransmisionScreen extends ConsumerStatefulWidget {
 
 class _TransmisionScreenState extends ConsumerState<TransmisionScreen> {
   TransmisionParams? _params;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -27,31 +29,43 @@ class _TransmisionScreenState extends ConsumerState<TransmisionScreen> {
   }
 
   Future<void> _loadParamsAndStart() async {
-    final solicitudLocal =
-        SolicitudLocalDatasource(LocalDb.instance);
-    final docLocal = DocumentoLocalDatasource();
+    try {
+      final solicitudLocal =
+          SolicitudLocalDatasource();
+      final docLocal = DocumentoLocalDatasource();
 
-    final solicitud = await solicitudLocal.getEnviada(widget.solicitudId);
-    if (solicitud == null || !mounted) return;
+      var solicitud = await solicitudLocal.getEnviada(widget.solicitudId);
+      if (solicitud == null || !mounted) return;
 
-    final docs = await docLocal.listar(widget.solicitudId);
+      var docs = await docLocal.listar(widget.solicitudId);
 
-    final params = TransmisionParams(
-      solicitudId: widget.solicitudId,
-      solicitud: solicitud,
-      documentos: docs,
-      tieneConsultaBuro: true,
-    );
+      if (solicitud.solicitante.nombres.isEmpty && docs.isEmpty) {
+        await Future.delayed(const Duration(milliseconds: 500));
+        solicitud = await solicitudLocal.getEnviada(widget.solicitudId);
+        docs = await docLocal.listar(widget.solicitudId);
+        if (solicitud == null || !mounted) return;
+      }
 
-    if (!mounted) return;
-    setState(() => _params = params);
+      final params = TransmisionParams(
+        solicitudId: widget.solicitudId,
+        solicitud: solicitud,
+        documentos: docs,
+        tieneConsultaBuro: true,
+      );
 
-    final notifier =
-        ref.read(transmisionNotifierProvider(params).notifier);
-    await notifier.verificarReanudacion();
-    final errores = await notifier.validarPreRequisitos();
-    if (errores.isEmpty && mounted) {
-      notifier.iniciarEnvio();
+      if (!mounted) return;
+      setState(() => _params = params);
+
+      final notifier =
+          ref.read(transmisionNotifierProvider(params).notifier);
+      await notifier.verificarReanudacion();
+      final errores = await notifier.validarPreRequisitos();
+      if (errores.isEmpty && mounted) {
+        notifier.iniciarEnvio();
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _errorMessage = 'Error al cargar: ${e.toString()}');
     }
   }
 
@@ -60,7 +74,36 @@ class _TransmisionScreenState extends ConsumerState<TransmisionScreen> {
     if (_params == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Transmisión')),
-        body: const Center(child: CircularProgressIndicator()),
+        body: _errorMessage != null
+            ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.error_outline, size: 48, color: AppColors.error),
+                      const SizedBox(height: 16),
+                      Text(
+                        _errorMessage!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 14, color: AppColors.error),
+                      ),
+                      const SizedBox(height: 24),
+                      ElevatedButton(
+                        onPressed: () {
+                          setState(() {
+                            _errorMessage = null;
+                            _params = null;
+                          });
+                          _loadParamsAndStart();
+                        },
+                        child: const Text('REINTENTAR'),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            : const Center(child: CircularProgressIndicator()),
       );
     }
 
@@ -91,17 +134,19 @@ class _TransmisionScreenState extends ConsumerState<TransmisionScreen> {
 
   Widget _buildErroresPreValidacion(TransmisionState state) {
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: context.respPad(all: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.warning_amber, color: AppColors.warning, size: 28),
-              SizedBox(width: 8),
-              Text(
-                'Revisa los siguientes errores antes de enviar',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              const Icon(Icons.warning_amber, color: AppColors.warning, size: 28),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Revisa los siguientes errores antes de continuar',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
               ),
             ],
           ),
@@ -110,20 +155,27 @@ class _TransmisionScreenState extends ConsumerState<TransmisionScreen> {
             child: ListView.builder(
               itemCount: state.erroresPreValidacion.length,
               itemBuilder: (_, i) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.only(bottom: 6),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.cancel, color: AppColors.error, size: 20),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Icon(Icons.cancel, color: AppColors.error, size: 18),
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text(state.erroresPreValidacion[i]),
+                      child: Text(
+                        state.erroresPreValidacion[i],
+                        style: const TextStyle(fontSize: 14),
+                      ),
                     ),
                   ],
                 ),
               ),
             ),
           ),
+          const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
             height: 48,
@@ -143,7 +195,7 @@ class _TransmisionScreenState extends ConsumerState<TransmisionScreen> {
 
   Widget _buildProgreso(TransmisionState state, TransmisionNotifier notifier) {
     return Padding(
-      padding: const EdgeInsets.all(24),
+      padding: context.respPad(all: 24),
       child: Column(
         children: [
           if (state.estadoRealtime != null)
@@ -206,9 +258,11 @@ class _TransmisionScreenState extends ConsumerState<TransmisionScreen> {
             ),
             const SizedBox(height: 16),
           ],
-          const Text(
-            'Enviando solicitud al comité...',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          Text(
+            state.isTransmitiendo
+                ? 'Enviando solicitud al comité...'
+                : 'Transmisión de solicitud',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 24),
           Expanded(
@@ -234,7 +288,7 @@ class _TransmisionScreenState extends ConsumerState<TransmisionScreen> {
   Widget _buildCompletado(TransmisionState state) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: context.respPad(all: 24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

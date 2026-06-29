@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:signature/signature.dart';
 import '../../core/constants/app_colors.dart';
+import '../utils/responsive.dart';
 
 class SignaturePad extends StatefulWidget {
   final ValueChanged<String>? onSignatureChanged;
@@ -53,7 +54,7 @@ class _SignaturePadState extends State<SignaturePad> {
     return Column(
       children: [
         Container(
-          height: 180,
+          height: context.hp(25).clamp(140, 260),
           decoration: BoxDecoration(
             border: Border.all(color: AppColors.border, width: 1.5),
             borderRadius: BorderRadius.circular(12),
@@ -62,7 +63,7 @@ class _SignaturePadState extends State<SignaturePad> {
             borderRadius: BorderRadius.circular(11),
             child: Signature(
               controller: _controller,
-              height: 180,
+              height: context.hp(25).clamp(140, 260),
               backgroundColor: Colors.white,
             ),
           ),

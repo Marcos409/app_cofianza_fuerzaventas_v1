@@ -1,65 +1,67 @@
-import 'dart:convert';
+import 'package:dio/dio.dart';
 import '../domain/asesor_model.dart';
-import '../../../core/supabase/supabase_client.dart';
+import '../../../core/network/api_client.dart';
 
 class AuthRemoteDatasource {
-  final SupabaseService _supabase;
+  final ApiClient _apiClient;
 
-  AuthRemoteDatasource(this._supabase);
-
-  /// Convierte código de empleado en email interno para Supabase Auth.
-  String _codigoToEmail(String codigo) => '$codigo@asesor.confianza.pe';
+  AuthRemoteDatasource(this._apiClient);
 
   Future<AsesorModel> login(String codigoEmpleado, String password) async {
-    final email = _codigoToEmail(codigoEmpleado);
-
-    final response = await _supabase.auth.signInWithPassword(
-      email: email,
-      password: password,
-    );
-
-    final user = response.user;
-    if (user == null) throw Exception('Error al autenticar');
-
-    final asesor = await _fetchAsesorData(user.id);
-    return asesor.copyWith(token: response.session?.accessToken);
+    try {
+      final data = await _apiClient.login(codigoEmpleado, password);
+      final asesorData = data['asesor'] as Map<String, dynamic>;
+      return AsesorModel(
+        id: asesorData['id']?.toString() ?? '',
+        userId: asesorData['user_id']?.toString() ?? asesorData['id']?.toString() ?? '',
+        codigoEmpleado: asesorData['codigo_empleado']?.toString() ?? codigoEmpleado,
+        nombres: asesorData['nombres']?.toString() ?? '',
+        apellidos: asesorData['apellidos']?.toString() ?? '',
+        agenciaId: asesorData['agencia_id']?.toString(),
+        rol: Role.fromString(asesorData['perfil']?.toString() ?? 'operador'),
+        activo: asesorData['activo'] == true,
+        email: asesorData['email']?.toString(),
+        telefono: asesorData['telefono']?.toString(),
+        token: data['access_token'] as String?,
+      );
+    } on DioException catch (e) {
+      final detail = e.response?.data is Map ? (e.response!.data as Map)['detail']?.toString() : null;
+      throw Exception(detail ?? 'Error de conexión. Verifica que el servidor esté encendido.');
+    }
   }
 
   Future<AsesorModel> getCurrentUser() async {
-    final session = _supabase.auth.currentSession;
-    if (session == null) throw Exception('Sesión no encontrada');
-
-    final user = session.user;
-    final asesor = await _fetchAsesorData(user.id);
-    return asesor.copyWith(token: session.accessToken);
-  }
-
-  Future<AsesorModel> _fetchAsesorData(String userId) async {
-    final response = await _supabase.client
-        .from('asesores_negocio')
-        .select()
-        .eq('user_id', userId)
-        .single();
-
-    final data = jsonDecode(jsonEncode(response)) as Map<String, dynamic>;
-    return AsesorModel.fromJson(data);
-  }
-
-  Future<void> logout() async {
-    await _supabase.auth.signOut();
-  }
-
-  Future<bool> isSessionValid() async {
-    final session = _supabase.auth.currentSession;
-    if (session == null) return false;
-    final expiresAt = session.expiresAt;
-    if (expiresAt == null) return false;
-    return DateTime.fromMillisecondsSinceEpoch(expiresAt * 1000).isAfter(
-      DateTime.now(),
+    final data = await _apiClient.get<Map<String, dynamic>>('/auth/me');
+    return AsesorModel(
+      id: data['id']?.toString() ?? '',
+      userId: data['user_id']?.toString() ?? data['id']?.toString() ?? '',
+      codigoEmpleado: data['codigo_empleado']?.toString() ?? '',
+      nombres: data['nombres']?.toString() ?? '',
+      apellidos: data['apellidos']?.toString() ?? '',
+      agenciaId: data['agencia_id']?.toString(),
+      rol: Role.fromString(data['perfil']?.toString() ?? 'operador'),
+      activo: data['activo'] == true,
+      email: data['email']?.toString(),
+      telefono: data['telefono']?.toString(),
     );
   }
 
+  Future<void> logout() async {
+    await _apiClient.clearSession();
+  }
+
+  Future<bool> isSessionValid() async {
+    try {
+      await _apiClient.get('/auth/me');
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> refreshSession() async {
-    await _supabase.auth.refreshSession();
+    try {
+      await _apiClient.post('/auth/refresh');
+    } catch (_) {}
   }
 }

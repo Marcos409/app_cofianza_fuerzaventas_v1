@@ -1,14 +1,23 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/network_monitor.dart';
-import '../../../core/supabase/supabase_client.dart';
+// ════════════════════════════════════════════════════════════
+// 🔧 SUPABASE_COMENTADO: Desarrollando solo con PostgreSQL local - Junio 2026
+// ════════════════════════════════════════════════════════════
+// import '../../../core/supabase/supabase_client.dart';
+// ════════════════════════════════════════════════════════════
 import '../data/documento_repository.dart';
 import 'documentos_viewmodel.dart';
 
 final documentoRepositoryProvider = Provider<DocumentoRepository>((ref) {
-  return DocumentoRepository(
-    SupabaseService.instance.client,
-    NetworkMonitor(),
-  );
+  // ════════════════════════════════════════════════════════════
+  // 🔧 SUPABASE_COMENTADO: Constructor sin Supabase
+  // ════════════════════════════════════════════════════════════
+  // return DocumentoRepository(
+  //   SupabaseService.instance.client,
+  //   NetworkMonitor(),
+  // );
+  return DocumentoRepository(NetworkMonitor());
+  // ════════════════════════════════════════════════════════════
 });
 
 final documentosNotifierProvider =

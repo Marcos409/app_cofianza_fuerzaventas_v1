@@ -1,118 +1,87 @@
 import 'dart:convert';
-import 'package:sqflite/sqflite.dart';
+import 'package:uuid/uuid.dart';
 import '../domain/solicitud_model.dart';
-import '../../../core/storage/local_db.dart';
+import '../../../core/cache/local_cache.dart';
+import '../../../core/network/api_client.dart';
 
 class SolicitudLocalDatasource {
-  final LocalDb _localDb;
-
-  SolicitudLocalDatasource(this._localDb);
-
-  Future<Database> get _database => _localDb.database;
+  final LocalCache _cache = LocalCache.instance;
+  final ApiClient _api = ApiClient.instance;
 
   Future<void> saveBorrador(SolicitudModel solicitud) async {
-    final db = await _database;
-    await db.insert(
-      'solicitudes_borrador',
+    await _cache.cacheJson(
+      'solicitudes_borrador_cache',
+      solicitud.id,
+      solicitud.asesorId,
       solicitud.toBorradorMap(),
-      conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
 
   Future<List<SolicitudModel>> getBorradores() async {
-    final db = await _database;
-    final maps = await db.query(
-      'solicitudes_borrador',
+    final db = await _cache.database;
+    final rows = await db.query(
+      'solicitudes_borrador_cache',
       orderBy: 'updated_at DESC',
     );
-    return maps.map(SolicitudModel.fromBorradorMap).toList();
+    return rows.map((r) {
+      final data = jsonDecode(r['data_json'] as String);
+      return SolicitudModel.fromBorradorMap(Map<String, dynamic>.from(data));
+    }).toList();
   }
 
   Future<void> deleteBorrador(String id) async {
-    final db = await _database;
-    await db.delete('solicitudes_borrador', where: 'id = ?', whereArgs: [id]);
+    await _cache.deleteCached('solicitudes_borrador_cache', id);
   }
 
   Future<SolicitudModel?> getBorrador(String id) async {
-    final db = await _database;
-    final maps = await db.query(
-      'solicitudes_borrador',
-      where: 'id = ?',
-      whereArgs: [id],
-      limit: 1,
-    );
-    if (maps.isEmpty) return null;
-    return SolicitudModel.fromBorradorMap(maps.first);
+    final data = await _cache.getCached('solicitudes_borrador_cache', id);
+    if (data == null) return null;
+    return SolicitudModel.fromBorradorMap(Map<String, dynamic>.from(data as Map));
   }
 
   Future<void> saveEnviada(SolicitudModel solicitud) async {
-    final db = await _database;
-    await db.insert(
-      'solicitudes_enviadas',
-      {
-        'id': solicitud.id,
-        'asesor_id': solicitud.asesorId,
-        'datos_json': jsonEncode(solicitud.toJson()),
-        'estado': solicitud.estado.name,
-        'pendiente_sync': solicitud.pendienteSync ? 1 : 0,
-        'created_at': solicitud.fechaCreacion?.toIso8601String() ??
-            DateTime.now().toIso8601String(),
-        'updated_at': DateTime.now().toIso8601String(),
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    await _api.post('/solicitudes', data: solicitud.toJson());
   }
 
   Future<SolicitudModel?> getEnviada(String id) async {
-    final db = await _database;
-    final maps = await db.query(
-      'solicitudes_enviadas',
-      where: 'id = ?',
-      whereArgs: [id],
-      limit: 1,
-    );
-    if (maps.isEmpty) return null;
-    final m = maps.first;
-    final datos = m['datos_json']?.toString();
-    if (datos != null && datos.isNotEmpty) {
-      return SolicitudModel.fromJson(
-          Map<String, dynamic>.from(jsonDecode(datos)));
+    try {
+      final apiData = await _api.get<Map<String, dynamic>>('/solicitudes/$id');
+      if (apiData != null) {
+        return SolicitudModel.fromJson(apiData);
+      }
+    } catch (_) {}
+    try {
+      final cached = await _cache.getCached('solicitudes_cache', id);
+      if (cached != null) {
+        return SolicitudModel.fromJson(Map<String, dynamic>.from(cached));
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<List<SolicitudModel>> getAsignadasDesdeServidor(String asesorId) async {
+    try {
+      final list = await _api.get<List>('/solicitudes/asignadas', params: {'asesor_id': asesorId});
+      if (list == null) return [];
+      return list.map((item) {
+        final map = item is Map<String, dynamic> ? item : Map<String, dynamic>.from(item);
+        return SolicitudModel.fromJson(map);
+      }).toList();
+    } catch (_) {
+      return [];
     }
-    return SolicitudModel(
-      id: m['id']?.toString() ?? '',
-      asesorId: m['asesor_id']?.toString() ?? '',
-      estado: EstadoSolicitud.fromString(m['estado']?.toString() ?? ''),
-      fechaCreacion: m['created_at'] != null
-          ? DateTime.tryParse(m['created_at'].toString())
-          : null,
-    );
   }
 
   Future<List<SolicitudModel>> getSolicitudesDelMes(String asesorId) async {
-    final db = await _database;
-    final inicioMes = DateTime(DateTime.now().year, DateTime.now().month, 1)
-        .toIso8601String();
-    final maps = await db.query(
-      'solicitudes_enviadas',
-      where: 'asesor_id = ? AND created_at >= ?',
-      whereArgs: [asesorId, inicioMes],
-      orderBy: 'created_at DESC',
-    );
-
-    return maps.map((m) {
-      final datos = m['datos_json']?.toString();
-      if (datos != null && datos.isNotEmpty) {
-        return SolicitudModel.fromJson(
-            Map<String, dynamic>.from(jsonDecode(datos)));
-      }
-      return SolicitudModel(
-        id: m['id']?.toString() ?? '',
-        asesorId: m['asesor_id']?.toString() ?? '',
-        estado: EstadoSolicitud.fromString(m['estado']?.toString() ?? ''),
-        fechaCreacion: m['created_at'] != null
-            ? DateTime.tryParse(m['created_at'].toString())
-            : null,
-      );
-    }).toList();
+    try {
+      final list = await _api.get<List>('/solicitudes', params: {'asesor_id': asesorId});
+      if (list == null) return [];
+      return list.map((item) {
+        final map = item is Map<String, dynamic> ? item : Map<String, dynamic>.from(item);
+        return SolicitudModel.fromJson(map);
+      }).toList();
+    } catch (_) {
+      return [];
+    }
   }
 }

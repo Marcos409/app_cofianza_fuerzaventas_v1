@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../shared/widgets/documento_checklist.dart';
 import '../domain/documento_model.dart';
@@ -38,6 +39,24 @@ class _DocumentosScreenState extends ConsumerState<DocumentosScreen> {
       appBar: AppBar(title: const Text('Documentos')),
       body: Column(
         children: [
+          if (state.errorMessage != null)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              color: AppColors.error.withValues(alpha: 0.1),
+              child: Row(
+                children: [
+                  const Icon(Icons.error_outline, color: AppColors.error, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      state.errorMessage!,
+                      style: const TextStyle(color: AppColors.error, fontSize: 13),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           _buildHeader(state),
           Expanded(
             child: DocumentoChecklist(
@@ -150,7 +169,7 @@ class _DocumentosScreenState extends ConsumerState<DocumentosScreen> {
           height: 48,
           child: ElevatedButton(
             onPressed: state.todosObligatoriosListos && !state.isUploading
-                ? () => Navigator.of(context).pop(true)
+                ? () => context.pushReplacement('/transmision/${widget.solicitudId}')
                 : null,
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,

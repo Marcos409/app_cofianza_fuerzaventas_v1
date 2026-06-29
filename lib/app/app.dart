@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'router.dart';
 import '../core/constants/app_colors.dart';
@@ -14,6 +15,15 @@ class App extends ConsumerWidget {
       title: 'Confianza Fuerza Ventas',
       routerConfig: router,
       debugShowCheckedModeBanner: false,
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('es', 'PE'),
+        Locale('es'),
+      ],
       theme: ThemeData(
         useMaterial3: true,
         colorSchemeSeed: AppColors.primary,

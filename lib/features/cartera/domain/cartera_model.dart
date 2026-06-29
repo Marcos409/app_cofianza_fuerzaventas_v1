@@ -261,23 +261,37 @@ class CarteraModel {
       (e) => e.name == map['prioridad'],
       orElse: () => Prioridad.normal,
     ),
-    scorePrioridad: (map['score_prioridad'] as num?)?.toInt() ?? 0,
+    scorePrioridad: _toInt(map['score_prioridad']) ?? 0,
     estadoVisita: EstadoVisita.fromString(map['estado_visita']?.toString() ?? 'pendiente'),
     resultadoVisita: map['resultado_visita']?.toString(),
     observacionVisita: map['observacion_visita']?.toString(),
     timestampVisita: map['timestamp_visita'] != null
         ? DateTime.tryParse(map['timestamp_visita'].toString())
         : null,
-    latVisita: (map['lat_visita'] as num?)?.toDouble(),
-    lngVisita: (map['lng_visita'] as num?)?.toDouble(),
-    ordenManual: (map['orden_manual'] as num?)?.toInt() ?? 0,
-    pendienteSync: (map['pendiente_sync'] as num?)?.toInt() == 1,
+    latVisita: _toDouble(map['lat_visita']),
+    lngVisita: _toDouble(map['lng_visita']),
+    ordenManual: _toInt(map['orden_manual']) ?? 0,
+    pendienteSync: (_toInt(map['pendiente_sync']) ?? 0) == 1,
     nombreCliente: map['nombre_cliente']?.toString() ?? '',
     documentoCliente: map['documento_cliente']?.toString() ?? '',
     direccionCliente: map['direccion_cliente']?.toString() ?? '',
     telefonoCliente: map['telefono_cliente']?.toString(),
-    montoCredito: (map['monto_credito'] as num?)?.toDouble(),
+    montoCredito: _toDouble(map['monto_credito']),
   );
+
+  static int? _toInt(dynamic v) {
+    if (v == null) return null;
+    if (v is int) return v;
+    if (v is double) return v.toInt();
+    return int.tryParse(v.toString());
+  }
+
+  static double? _toDouble(dynamic v) {
+    if (v == null) return null;
+    if (v is double) return v;
+    if (v is int) return v.toDouble();
+    return double.tryParse(v.toString());
+  }
 
   static int calcularScore({
     required TipoGestion tipoGestion,

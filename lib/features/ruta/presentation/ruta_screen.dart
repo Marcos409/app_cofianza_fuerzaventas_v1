@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'ruta_viewmodel.dart';
 import 'providers/ruta_provider.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../shared/utils/responsive.dart';
 import '../../cartera/domain/cartera_model.dart';
 
 class RutaScreen extends ConsumerStatefulWidget {
@@ -25,7 +26,7 @@ class _RutaScreenState extends ConsumerState<RutaScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      ref.read(rutaNotifierProvider.notifier).loadData();
+      await ref.read(rutaNotifierProvider.notifier).loadData();
       ref.read(rutaNotifierProvider.notifier).requestLocationPermission();
     });
   }
@@ -53,6 +54,9 @@ class _RutaScreenState extends ConsumerState<RutaScreen> {
       if (prev?.currentPosition != next.currentPosition) {
         _centerMapOnPosition(next);
       }
+      if (prev?.gpsError != next.gpsError && next.gpsError != null) {
+        _handleGpsError(next.gpsError!);
+      }
     });
 
     if (state.status == RutaStatus.initial ||
@@ -79,13 +83,13 @@ class _RutaScreenState extends ConsumerState<RutaScreen> {
               markers: _markers,
               polylines: _polylines,
               polygons: state.polygons,
-              myLocationEnabled: state.currentPosition != null,
-              myLocationButtonEnabled: state.currentPosition != null,
+              myLocationEnabled: true,
+              myLocationButtonEnabled: true,
               zoomControlsEnabled: false,
               compassEnabled: true,
             )
           else
-            _buildSinGpsBody(),
+            _buildSinGpsBody(state),
           _buildBottomPanel(state),
         ],
       ),
@@ -93,40 +97,76 @@ class _RutaScreenState extends ConsumerState<RutaScreen> {
     );
   }
 
-  Widget _buildSinGpsBody() {
+  Widget _buildSinGpsBody(RutaState state) {
+    final gpsError = state.gpsError;
+
+    String title;
+    String message;
+    IconData icon;
+    String buttonLabel;
+    VoidCallback? buttonAction;
+
+    if (gpsError == 'service_disabled') {
+      title = 'GPS desactivado';
+      message = 'Activa la ubicación en los ajustes del dispositivo.';
+      icon = Icons.gps_off;
+      buttonLabel = 'Abrir ajustes';
+      buttonAction = _openLocationSettings;
+    } else if (gpsError == 'permission_denied_forever') {
+      title = 'Permiso denegado';
+      message = 'El permiso de ubicación fue denegado permanentemente. Ve a Ajustes para concederlo.';
+      icon = Icons.gps_off;
+      buttonLabel = 'Abrir ajustes';
+      buttonAction = _openAppSettings;
+    } else if (gpsError == 'permission_denied' || gpsError == 'gps_failed') {
+      title = 'Error de GPS';
+      message = 'No se pudo obtener la ubicación. Presiona "Reintentar" para intentar de nuevo.';
+      icon = Icons.gps_not_fixed;
+      buttonLabel = 'Reintentar';
+      buttonAction = () async {
+        ref.read(rutaNotifierProvider.notifier).clearGpsError();
+        await ref.read(rutaNotifierProvider.notifier).requestLocationPermission();
+      };
+    } else {
+      title = 'Activar GPS';
+      message = 'Activa el GPS para ver tu posición en el mapa y optimizar la ruta.';
+      icon = Icons.map_outlined;
+      buttonLabel = 'Activar GPS';
+      buttonAction = () async {
+        await ref.read(rutaNotifierProvider.notifier).requestLocationPermission();
+      };
+    }
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.map_outlined, size: 64, color: AppColors.textHint),
+            Icon(icon, size: 64, color: AppColors.textHint),
             const SizedBox(height: 16),
-            const Text(
-              'Mapa sin ubicación',
-              style: TextStyle(
+            Text(
+              title,
+              style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
                 color: AppColors.textPrimary,
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Activa el GPS para ver tu posición en el mapa y optimizar la ruta.',
+            Text(
+              message,
               textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.textSecondary),
+              style: const TextStyle(color: AppColors.textSecondary),
             ),
             const SizedBox(height: 24),
             ElevatedButton(
-              onPressed: () {
-                ref.read(rutaNotifierProvider.notifier)
-                    .requestLocationPermission();
-              },
+              onPressed: buttonAction,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
               ),
-              child: const Text('Activar GPS'),
+              child: Text(buttonLabel),
             ),
           ],
         ),
@@ -354,7 +394,7 @@ class _RutaScreenState extends ConsumerState<RutaScreen> {
                     return GestureDetector(
                       onTap: () => _showClienteInfo(c),
                       child: Container(
-                        width: 120,
+                        width: context.wp(32).clamp(110, 160),
                         margin: const EdgeInsets.only(right: 8, top: 8),
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
@@ -479,25 +519,30 @@ class _RutaScreenState extends ConsumerState<RutaScreen> {
               const SizedBox(height: 12),
               Row(
                 children: [
-                  Badge(
-                    backgroundColor:
-                        _badgeColor(cliente.scorePrioridad).withValues(alpha: 0.15),
-                    textStyle: TextStyle(
-                      color: _badgeColor(cliente.scorePrioridad),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                  Flexible(
+                    child: Badge(
+                      backgroundColor:
+                          _badgeColor(cliente.scorePrioridad).withValues(alpha: 0.15),
+                      textStyle: TextStyle(
+                        color: _badgeColor(cliente.scorePrioridad),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      label: Text(cliente.tipoGestion.label, overflow: TextOverflow.ellipsis),
                     ),
-                    label: Text(cliente.tipoGestion.label),
                   ),
                   const SizedBox(width: 8),
-                  Badge(
-                    backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-                    textStyle: const TextStyle(
-                      color: AppColors.primary,
-                      fontSize: 12,
-                    ),
-                    label: Text(
-                      _prioridadLabel(cliente.scorePrioridad),
+                  Flexible(
+                    child: Badge(
+                      backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                      textStyle: const TextStyle(
+                        color: AppColors.primary,
+                        fontSize: 12,
+                      ),
+                      label: Text(
+                        _prioridadLabel(cliente.scorePrioridad),
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ),
                 ],
@@ -673,6 +718,68 @@ class _RutaScreenState extends ConsumerState<RutaScreen> {
         ),
       );
     }
+  }
+
+  void _handleGpsError(String error) {
+    if (!mounted) return;
+    if (error == 'service_disabled') {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('GPS desactivado'),
+          content: const Text(
+            'Activa la ubicación en los ajustes del dispositivo para usar el mapa.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                _openLocationSettings();
+              },
+              child: const Text('Abrir ajustes'),
+            ),
+          ],
+        ),
+      );
+    } else if (error == 'permission_denied_forever') {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Permiso de GPS denegado'),
+          content: const Text(
+            'El permiso de ubicación fue denegado permanentemente. '
+            'Ve a Ajustes > Aplicaciones > Permisos y activa la ubicación.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                _openAppSettings();
+              },
+              child: const Text('Abrir ajustes'),
+            ),
+          ],
+        ),
+      );
+    } else if (error == 'permission_denied') {
+      ref.read(rutaNotifierProvider.notifier).clearGpsError();
+    }
+  }
+
+  Future<void> _openAppSettings() async {
+    await Geolocator.openAppSettings();
+  }
+
+  Future<void> _openLocationSettings() async {
+    await Geolocator.openLocationSettings();
   }
 
   Color _badgeColor(int score) {

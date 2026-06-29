@@ -71,7 +71,9 @@ class TransmisionEstado {
 
   factory TransmisionEstado.fromMap(Map<String, dynamic> m) => TransmisionEstado(
         solicitudId: m['solicitud_id'] as String,
-        pasoCompletado: m['paso_completado'] as int,
+        pasoCompletado: m['paso_completado'] is num
+            ? (m['paso_completado'] as num).toInt()
+            : int.tryParse(m['paso_completado']?.toString() ?? '') ?? 0,
         documentosSubidos: (m['documentos_subidos'] as String?)
                 ?.split(',')
                 .where((s) => s.isNotEmpty)

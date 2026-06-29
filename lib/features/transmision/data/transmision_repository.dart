@@ -1,77 +1,49 @@
-import 'dart:io';
-import 'dart:typed_data';
-import 'package:sqflite/sqflite.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../../core/storage/local_db.dart';
+import 'dart:convert';
+import 'dart:math';
+import 'package:dio/dio.dart';
+import '../../../core/cache/local_cache.dart';
+import '../../../core/network/api_client.dart';
 import '../../../core/network/network_monitor.dart';
 import '../../../features/documentos/domain/documento_model.dart';
 import '../../../features/solicitud/domain/solicitud_model.dart';
-import '../../../shared/services/image_service.dart';
 import '../domain/transmision_model.dart';
 
 class TransmisionRepository {
-  final SupabaseClient _supabase;
   final NetworkMonitor _network;
-  final LocalDb _localDb;
+  final LocalCache _cache;
+  final ApiClient _api = ApiClient.instance;
 
-  TransmisionRepository(this._supabase, this._network, this._localDb);
+  TransmisionRepository(this._network, this._cache);
 
   Future<TransmisionEstado?> cargarEstado(String solicitudId) async {
-    final db = await _localDb.database;
-    final rows = await db.query(
-      'transmision_estado',
-      where: 'solicitud_id = ?',
-      whereArgs: [solicitudId],
-      limit: 1,
-    );
-    if (rows.isEmpty) return null;
-    return TransmisionEstado.fromMap(rows.first);
+    final cached = await _cache.getCached('solicitudes_cache', solicitudId);
+    if (cached == null) return null;
+    return TransmisionEstado.fromMap(Map<String, dynamic>.from(cached));
   }
 
   Future<void> guardarEstado(TransmisionEstado estado) async {
-    final db = await _localDb.database;
-    await db.insert(
-      'transmision_estado',
+    await _cache.cacheJson(
+      'solicitudes_cache',
+      estado.solicitudId,
+      '',
       estado.toMap(),
-      conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
 
   Future<void> limpiarEstado(String solicitudId) async {
-    final db = await _localDb.database;
-    await db.delete(
-      'transmision_estado',
-      where: 'solicitud_id = ?',
-      whereArgs: [solicitudId],
-    );
+    await _cache.deleteCached('solicitudes_cache', solicitudId);
   }
 
   Future<List<String>> validarPreRequisitos({
     required String solicitudId,
     required SolicitudModel solicitud,
     required List<DocumentoModel> documentos,
-    required bool tieneConsultaBuro,
   }) async {
     final errores = <String>[];
 
-    if (solicitud.solicitante.nombres.isEmpty ||
-        solicitud.solicitante.apellidos.isEmpty ||
-        solicitud.solicitante.documento.isEmpty) {
-      errores.add('Faltan datos del solicitante (paso 1)');
-    }
-
-    if (solicitud.negocio.tipoNegocio.isEmpty ||
-        solicitud.negocio.ingresosMensuales <= 0) {
-      errores.add('Faltan datos del negocio (paso 2)');
-    }
-
-    if (solicitud.credito.montoSolicitado <= 0 ||
-        solicitud.credito.plazoMeses <= 0) {
-      errores.add('Faltan condiciones del crédito (paso 3)');
-    }
-
-    if (solicitud.firmaBase64.isEmpty) {
-      errores.add('Falta la firma del cliente');
+    if (solicitud.estado != EstadoSolicitud.enProceso &&
+        solicitud.estado != EstadoSolicitud.enviado) {
+      errores.add('La solicitud debe estar en estado "en proceso"');
     }
 
     final obligatorios = TipoDocumento.values.where((t) => t.esObligatorio);
@@ -81,12 +53,8 @@ class TransmisionRepository {
             orElse: () => null,
           );
       if (doc == null) {
-        errores.add('Falta documento obligatorio: ${tipo.label}');
+        errores.add('Falta ${tipo.label}');
       }
-    }
-
-    if (!tieneConsultaBuro) {
-      errores.add('Falta consulta de buró o justificación de omisión');
     }
 
     return errores;
@@ -98,118 +66,99 @@ class TransmisionRepository {
     required List<DocumentoModel> documentos,
     required void Function(int paso, int docsOk) onProgress,
   }) async {
-    final connected = await _network.isConnected;
-    if (!connected) {
-      throw Exception('No hay conexión a internet');
-    }
-
     onProgress(1, 0);
 
-    // Paso 1: Validar datos
-    await guardarEstado(TransmisionEstado(
-      solicitudId: solicitudId,
-      pasoCompletado: 1,
-      updatedAt: DateTime.now(),
-    ));
-
-    final docsParaSubir =
-        documentos.where((d) => d.estado == EstadoDocumento.listo).toList();
-    final subidos = <String>[];
-
-    // Paso 2: Subir documentos reales en paralelo
-    onProgress(2, 0);
-    final uploadFutures = docsParaSubir.map((doc) async {
-      try {
-        await _subirDocumentoReal(solicitudId, doc);
-      } catch (e) {
-        throw Exception('Error al subir ${doc.tipo.label}: $e');
-      }
-    });
-    await Future.wait(uploadFutures);
-    subidos.addAll(docsParaSubir.map((d) => d.tipo.storageName));
-    await guardarEstado(TransmisionEstado(
-      solicitudId: solicitudId,
-      pasoCompletado: 2,
-      documentosSubidos: subidos,
-      updatedAt: DateTime.now(),
-    ));
-    onProgress(2, subidos.length);
-
-    // Paso 3: Llamar Edge Function para registrar en sistema central
-    onProgress(3, docsParaSubir.length);
-    String? expediente;
+    // Step 1: asegurar que la solicitud existe en el backend
     try {
-      final response = await _supabase.functions.invoke(
-        'registrar-solicitud',
-        body: {
-          'solicitud_id': solicitudId,
-          'solicitud': solicitud.toJson(),
-          'documentos_subidos': subidos,
-          'fecha_envio': DateTime.now().toIso8601String(),
-        },
-      );
-      if (response.data is Map) {
-        expediente = (response.data as Map)['expediente']?.toString();
-      }
-    } catch (_) {
-      // Fallback: actualizar directamente en la tabla
-      await _supabase.from('solicitudes_credito').update({
-        'estado': 'enviado',
-        'fecha_envio': DateTime.now().toIso8601String(),
-      }).eq('id', solicitudId);
-    }
-    await guardarEstado(TransmisionEstado(
-      solicitudId: solicitudId,
-      pasoCompletado: 3,
-      documentosSubidos: subidos,
-      updatedAt: DateTime.now(),
-    ));
-
-    // Paso 4: Asignar expediente
-    onProgress(4, docsParaSubir.length);
-    expediente ??= _generarExpediente(solicitudId);
-    try {
-      await _supabase.from('solicitudes_credito').update({
-        'numero_expediente': expediente,
-      }).eq('id', solicitudId);
-    } catch (_) {}
-    await guardarEstado(TransmisionEstado(
-      solicitudId: solicitudId,
-      pasoCompletado: 4,
-      documentosSubidos: subidos,
-      expedienteGenerado: expediente,
-      updatedAt: DateTime.now(),
-    ));
-
-    // Paso 5: Completado
-    onProgress(5, docsParaSubir.length);
-    await limpiarEstado(solicitudId);
-  }
-
-  Future<void> _subirDocumentoReal(
-    String solicitudId,
-    DocumentoModel doc,
-  ) async {
-    Uint8List bytes;
-    if (doc.localPath != null && File(doc.localPath!).existsSync()) {
-      bytes = await ImageService.capturarDesdeArchivo(doc.localPath!);
-      bytes = await ImageService.comprimir(bytes);
-    } else {
-      throw Exception('Archivo no encontrado en: ${doc.localPath}');
-    }
-
-    final contentType = doc.tipo.storageName.endsWith('.pdf')
-        ? 'application/pdf'
-        : 'image/jpeg';
-
-    await _supabase.storage.from('documentos').uploadBinary(
-          'solicitudes/$solicitudId/${doc.tipo.storageName}',
-          bytes,
-          fileOptions: FileOptions(
-            contentType: contentType,
-            upsert: true,
-          ),
+      final garantiaMap = {
+        TipoGarantia.sinGarantia: 'sin_garantia',
+        TipoGarantia.aval: 'aval',
+        TipoGarantia.hipotecaria: 'hipotecaria',
+        TipoGarantia.prendaria: 'prendaria',
+      };
+      final payload = {
+        'id': solicitud.id,
+        'numero_documento': solicitud.solicitante.documento,
+        'nombres': solicitud.solicitante.nombres,
+        'apellidos': solicitud.solicitante.apellidos,
+        'telefono': solicitud.solicitante.telefono,
+        'email': solicitud.solicitante.email,
+        'fecha_nacimiento': solicitud.solicitante.fechaNacimiento
+            ?.toIso8601String(),
+        'estado_civil': solicitud.solicitante.estadoCivil,
+        'grado_instruccion': solicitud.solicitante.gradoInstruccion,
+        'tipo_negocio': solicitud.negocio.tipoNegocio,
+        'nombre_negocio': solicitud.negocio.nombreNegocio,
+        'direccion_negocio': solicitud.negocio.direccionNegocio,
+        'antiguedad_anios': solicitud.negocio.antiguedadAnios,
+        'antiguedad_meses': solicitud.negocio.antiguedadMeses,
+        'ingresos_estimados': solicitud.negocio.ingresosMensuales,
+        'gastos_mensuales': solicitud.negocio.gastosMensuales,
+        'patrimonio': solicitud.negocio.patrimonio,
+        'destino_credito': solicitud.negocio.destinoCredito,
+        'actividad_economica': solicitud.negocio.actividadEconomica,
+        'monto_solicitado': solicitud.credito.montoSolicitado,
+        'plazo_meses': solicitud.credito.plazoMeses,
+        'moneda': solicitud.credito.moneda,
+        'tipo_cuota': solicitud.credito.tipoCuota.name,
+        'garantia':
+            garantiaMap[solicitud.credito.garantia] ?? 'sin_garantia',
+        'cuota_estimada': solicitud.cuotaEstimada,
+        'tea_referencial': solicitud.teaReferencial,
+        'firma_cliente_base64': solicitud.firmaBase64,
+      };
+      final response = await _api.dio.post('/solicitudes', data: payload);
+      final backendExpediente =
+          response.data?['numero_expediente']?.toString();
+      if (backendExpediente != null && backendExpediente.isNotEmpty) {
+        final updated = solicitud.copyWith(
+          numeroExpediente: backendExpediente,
         );
+        await _cache.cacheJson('solicitudes_cache', solicitudId, '',
+            updated.toJson());
+      }
+    } on DioException catch (_) {}
+
+    // Step 2: obtener cliente_id desde el backend
+    String clienteId = '';
+    try {
+      final solicitudData = await _api
+          .get<Map<String, dynamic>>('/solicitudes/$solicitudId');
+      clienteId = solicitudData['cliente_id']?.toString() ?? '';
+    } catch (_) {}
+
+    try {
+      await _api.dio.post('/solicitudes/$solicitudId/enviar-comite');
+    } on DioException catch (e) {
+      print('[TransmisionRepository] Error llamando enviar-comite: $e');
+      throw Exception(
+          'Error al enviar al comité: ${e.response?.data ?? e.message}');
+    }
+
+    final updated = solicitud.copyWith(
+      estado: EstadoSolicitud.recibidoComite,
+      fechaActualizacion: DateTime.now(),
+    );
+
+    onProgress(3, documentos.length);
+
+    await _cache.cacheJson(
+        'solicitudes_cache', solicitudId, '', updated.toJson());
+
+    if (clienteId.isNotEmpty) {
+      try {
+        await _api.post('/notificaciones', data: {
+          'destinatario_tipo': 'cliente',
+          'cliente_id': clienteId,
+          'titulo': 'Solicitud recibida en comité',
+          'cuerpo':
+              'Su expediente ha sido recibido por el comité de evaluación.',
+          'tipo': 'recibido_comite',
+        });
+      } catch (_) {}
+    }
+
+    onProgress(4, documentos.length);
   }
 
   String _generarExpediente(String solicitudId) {
@@ -218,11 +167,8 @@ class TransmisionRepository {
     return 'EXP-${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}-$sufijo';
   }
 
-  Stream<List<Map<String, dynamic>>> obtenerStreamEstado(String solicitudId) {
-    return _supabase
-        .from('solicitudes_credito')
-        .stream(primaryKey: ['id'])
-        .eq('id', solicitudId)
-        .map((list) => list.map((j) => Map<String, dynamic>.from(j)).toList());
+  Stream<List<Map<String, dynamic>>> obtenerStreamEstado(
+      String solicitudId) {
+    return Stream.value([]);
   }
 }

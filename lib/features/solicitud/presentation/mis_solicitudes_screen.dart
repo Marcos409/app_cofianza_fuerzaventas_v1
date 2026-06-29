@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'solicitud_providers.dart';
 import '../domain/solicitud_model.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../shared/utils/formatters.dart';
 import '../../../features/auth/presentation/providers/auth_provider.dart';
+import '../../../features/estado_solicitudes/presentation/detalle_solicitud_screen.dart';
 
 final misSolicitudesProvider = FutureProvider.autoDispose
     .family<List<SolicitudModel>, String>((ref, asesorId) {
@@ -22,7 +24,7 @@ class MisSolicitudesScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text('Mis solicitudes del mes'),
+        title: Text('Mis solicitudes'),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         elevation: 0,
@@ -42,7 +44,7 @@ class MisSolicitudesScreen extends ConsumerWidget {
                   Icon(Icons.inbox_outlined,
                       size: 64, color: AppColors.textHint),
                   const SizedBox(height: 16),
-                  Text('No hay solicitudes este mes',
+                  Text('No hay solicitudes asignadas',
                       style: TextStyle(color: AppColors.textSecondary)),
                 ],
               ),
@@ -99,7 +101,13 @@ class MisSolicitudesScreen extends ConsumerWidget {
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                   itemCount: solicitudes.length,
                   itemBuilder: (_, i) => _SolicitudCard(
-                      solicitud: solicitudes[i]),
+                      solicitud: solicitudes[i],
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => DetalleSolicitudScreen(
+                              solicitud: solicitudes[i]),
+                        ),
+                      ),),
                 ),
               ),
             ],
@@ -129,8 +137,9 @@ class MisSolicitudesScreen extends ConsumerWidget {
 
 class _SolicitudCard extends StatelessWidget {
   final SolicitudModel solicitud;
+  final VoidCallback? onTap;
 
-  const _SolicitudCard({required this.solicitud});
+  const _SolicitudCard({required this.solicitud, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -139,6 +148,7 @@ class _SolicitudCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
+        onTap: onTap,
         contentPadding: const EdgeInsets.all(12),
         title: Text(
           solicitud.credito.montoSolicitado > 0
@@ -181,6 +191,8 @@ class _SolicitudCard extends StatelessWidget {
       case EstadoSolicitud.borrador:
         return AppColors.textHint;
       case EstadoSolicitud.enviado:
+        return AppColors.info;
+      case EstadoSolicitud.enProceso:
         return AppColors.info;
       case EstadoSolicitud.recibidoComite:
         return AppColors.info;
